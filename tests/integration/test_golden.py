@@ -10,7 +10,6 @@ Two layers:
   the *whole* chain (pipeline, tables, workbook, figures, report, dashboard) and pins the
   results. It needs no downloaded data, so it guards every push in CI.
 """
-import copy
 import hashlib
 import json
 from pathlib import Path
@@ -18,15 +17,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-import yaml
 
-from oilbeta import MARKET, pipeline, report
+from conftest import study_dict
+from oilbeta import MARKET, outputs, pipeline
 from oilbeta.config import Config, load_config
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 QUIET = dict(log=lambda *_: None)
 
-# Headline numbers of the pinned snapshot (configs/oslo.yaml, sample end 2026-09-11).
+# Headline numbers of the pinned snapshot (configs/study.yaml, sample end 2026-09-11).
 PINNED = {
     "index_beta_full": 0.286587, "index_beta_lo": 0.213891, "index_beta_hi": 0.359284,
     "index_beta_latest_window": 0.130235,
@@ -63,7 +62,7 @@ def headline(res) -> tuple[dict, dict]:
 
 
 def test_pinned_snapshot_reproduces_the_published_numbers():
-    cfg = load_config(REPO / "configs" / "oslo.yaml")
+    cfg = load_config(REPO / "configs")
     if not cfg.prices_path.exists():
         pytest.skip("pinned raw prices are not in this checkout (they are not redistributed)")
     expected_sha = json.loads(cfg.manifest_path.read_text(encoding="utf-8"))["sha256"]
@@ -85,11 +84,10 @@ SECTORS = {"Exploration & production": (1.0, 0.50), "Oil service & drilling": (1
 
 
 def synthetic_config(tmp_path: Path) -> Config:
-    raw = copy.deepcopy(yaml.safe_load((REPO / "configs" / "oslo.yaml").read_text(encoding="utf-8")))
-    raw["sample"] = {"start": "2008-01-01", "end": "2016-12-30"}
-    raw["data_exceptions"] = {}
-    raw["universe"] = {s: {f"{s[:3].upper()}{i}.OL": f"{s.split()[0]} {i}" for i in range(4)} for s in SECTORS}
-    return Config(raw=raw, root=tmp_path)
+    study = study_dict()                                   # the real parameters, a synthetic sample and universe
+    study["sample"] = {"start": "2008-01-01", "end": "2016-12-30"}
+    universe = {s: {f"{s[:3].upper()}{i}.OL": f"{s.split()[0]} {i}" for i in range(4)} for s in SECTORS}
+    return Config.from_dicts(study, universe, None, tmp_path)
 
 
 def synthetic_prices(cfg: Config) -> pd.DataFrame:
@@ -101,9 +99,9 @@ def synthetic_prices(cfg: Config) -> pd.DataFrame:
     level = lambda r: 100 * np.exp(np.cumsum(r))                     # noqa: E731
     cols = {cfg.oil_ticker: level(oil)}
     index_level = level(market)
-    splice = pd.Timestamp(cfg.market["splice_date"])
-    cols[cfg.market["early_ticker"]] = np.where(idx <= splice + pd.Timedelta(days=120), index_level, np.nan)
-    cols[cfg.market["late_ticker"]] = np.where(idx >= splice, index_level * 7.0, np.nan)
+    splice = pd.Timestamp(cfg.market.splice_date)
+    cols[cfg.market.early_ticker] = np.where(idx <= splice + pd.Timedelta(days=120), index_level, np.nan)
+    cols[cfg.market.late_ticker] = np.where(idx >= splice, index_level * 7.0, np.nan)
     for ticker in cfg.context.values():
         cols[ticker] = level(rng.normal(scale=0.006, size=n))
     for sector, members in cfg.universe.items():
@@ -128,7 +126,7 @@ def test_end_to_end_on_a_synthetic_market(tmp_path):
     synthetic_prices(cfg).to_csv(cfg.prices_path, float_format="%.6f")
 
     res = pipeline.run(cfg, **QUIET)
-    paths = report.write_all(res)
+    paths = outputs.write_all(res)
 
     # 1. the planted structure comes back out
     full = res.tables["betas_full"]

@@ -5,7 +5,9 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-from oilbeta import MARKET, OIL, dashboard, data, events
+from oilbeta import MARKET, OIL, data
+from oilbeta.analysis import events
+from oilbeta.outputs import dashboard
 
 
 def test_live_config_ends_yesterday_and_writes_elsewhere(mini_cfg):

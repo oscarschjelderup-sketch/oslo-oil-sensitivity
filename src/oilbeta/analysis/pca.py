@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from . import MARKET, OIL
+from .. import MARKET, OIL
 
 
 def return_pca(stock_returns: pd.DataFrame, factors: pd.DataFrame, n_components: int = 5,

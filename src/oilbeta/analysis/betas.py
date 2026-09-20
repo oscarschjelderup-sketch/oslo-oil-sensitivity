@@ -19,9 +19,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from . import MARKET, OIL
-from .config import Config
-from .regression import ols, orthogonalise
+from .. import MARKET, OIL
+from ..config import Config
+from ..stats import ols, orthogonalise
 
 
 def oil_betas(r: np.ndarray, m: np.ndarray, o: np.ndarray, hac_lags="auto") -> dict:
@@ -73,7 +73,7 @@ def units_frame(returns: pd.DataFrame, sectors: pd.DataFrame, cfg: Config) -> tu
     """All series we estimate betas for (market, sector portfolios, stocks) + a lookup table."""
     frame = pd.concat([returns[[MARKET]], sectors, returns[cfg.tickers]], axis=1)
     meta = pd.DataFrame(
-        [{"unit": MARKET, "name": cfg.market["name"], "kind": "market", "sector": ""}]
+        [{"unit": MARKET, "name": cfg.market.name, "kind": "market", "sector": ""}]
         + [{"unit": s, "name": s, "kind": "sector", "sector": s} for s in sectors.columns]
         + [{"unit": t, "name": cfg.names[t], "kind": "stock", "sector": cfg.sector_of[t]} for t in cfg.tickers]
     ).set_index("unit")

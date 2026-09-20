@@ -20,8 +20,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from . import MARKET, OIL
-from .regression import ols
+from .. import MARKET, OIL
+from ..stats import ols
 
 
 def find_events(oil: pd.Series, z_threshold: float, vol_window: int, min_gap: int,

@@ -17,8 +17,8 @@ import numpy as np
 import pandas as pd
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
-from . import MARKET, OIL
-from .pipeline import Results
+from .. import MARKET, OIL
+from ..pipeline import Results
 
 BLUE, ORANGE, GREEN = "#005A9E", "#D9622B", "#1F9E78"
 INK, MUTED, GRID, GREY = "#003255", "#5B6B75", "#E4E8EB", "#8F9DA6"
@@ -139,7 +139,7 @@ def market_rolling(res: Results):
     ax.xaxis.set_major_locator(mdates.YearLocator(2))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax.grid(axis="x", visible=False)
-    window = res.cfg.section("betas")["rolling_window"]
+    window = res.cfg.betas.rolling_window
     _title(ax, "Oslo Børs has become less of an oil bet",
            f"Oil beta of the benchmark index, rolling {window}-week windows, 95% interval. Vertical lines: major oil events.")
     return fig
@@ -175,7 +175,7 @@ def then_vs_now(res: Results):
     ax.hlines(y, t["beta_oil_total"], t["beta_oil_total_recent"], color=GRID, lw=2.2, zorder=1)
     ax.scatter(t["beta_oil_total"], y, s=44, color=GREY, zorder=3, edgecolor="white", linewidth=1.2,
                label=f"Full sample ({res.info['sample']['start'][:4]}–)")
-    years = res.cfg.section("scenarios")["window"] // 52
+    years = res.cfg.scenarios.window // 52
     ax.scatter(t["beta_oil_total_recent"], y, s=44, color=BLUE, zorder=3, edgecolor="white", linewidth=1.2,
                label=f"Last {years} years")
     ax.set_yticks(y, ["Oslo Børs index" if u == MARKET else _short(u) for u in t.index])
@@ -213,7 +213,7 @@ def event_paths(res: Results):
         ax.set_xlabel("Trading days from the shock")
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper left", ncol=2, fontsize=8.5, bbox_to_anchor=(0.01, 0.915))
-    thr = res.cfg.section("events")["z_threshold"]
+    thr = res.cfg.events.z_threshold
     fig.suptitle("Stocks react within two days; after that they simply follow oil's own path",
                  x=0.02, ha="left", fontsize=10.5, fontweight="bold", color=INK)
     fig.text(0.02, 0.925, f"Mean cumulative abnormal return around |Brent move| > {thr}σ days, re-based to the close "

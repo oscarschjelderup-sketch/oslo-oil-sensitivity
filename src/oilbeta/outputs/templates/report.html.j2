@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oslo Børs oil sensitivity</title>
+<style>
+:root{--ink:#003255;--muted:#5B6B75;--line:#E4E8EB;--blue:#005A9E;--bg:#ffffff;--soft:#F5F7F8}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:#1c2b36;font:15px/1.55 Arial,Helvetica,sans-serif}
+main{max-width:880px;margin:0 auto;padding:40px 16px 80px}
+h1,h2{font-family:Cambria,Georgia,serif;color:var(--ink);line-height:1.2} h1{font-size:34px;margin:0 0 6px}
+h2{font-size:23px;margin:54px 0 8px;padding-top:14px;border-top:2px solid var(--ink)} h3{color:var(--ink);font-size:15px;margin:26px 0 6px}
+.lede{color:var(--muted);font-size:16px;margin:0 0 26px} .step{color:var(--blue);font-size:12px;font-weight:bold;letter-spacing:.08em;text-transform:uppercase}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:22px 0}
+.tile{background:var(--soft);padding:14px 16px;border-left:3px solid var(--ink)} .tile b{display:block;font-size:26px;color:var(--ink);font-family:Cambria,Georgia,serif}
+.tile span{font-size:12.5px;color:var(--muted)}
+ol.findings{padding-left:20px} ol.findings li{margin:0 0 12px}
+img{max-width:100%;height:auto;display:block;margin:18px auto} img.tall{max-width:640px} img.narrow{max-width:600px}
+.scroll{overflow-x:auto} table.data{border-collapse:collapse;width:100%;font-size:13px;margin:10px 0 4px}
+table.data th{text-align:right;color:var(--muted);font-weight:normal;border-bottom:1px solid var(--ink);padding:6px 8px;white-space:nowrap}
+table.data td{text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}
+table.data th:first-child,table.data td:first-child{text-align:left;color:#1c2b36}
+.note{color:var(--muted);font-size:13px} .method{background:var(--soft);padding:12px 16px;font-size:13.5px;margin:14px 0}
+code{background:var(--soft);padding:1px 4px;font-size:13px} ul.tight li{margin-bottom:4px}
+</style></head><body><main>
+<div class="step">Equity research · factor study</div>
+<h1>How much oil is left in Oslo Børs?</h1>
+<p class="lede">Oil-price sensitivity of {{ info.sample.stocks }} Norwegian stocks and 10 sectors, {{ info.sample.start[:4] }}–{{ info.sample.end[:4] }}:
+two-factor betas with confidence intervals, a rule-based event study, scenario tables and an out-of-sample check.</p>
+<div class="tiles">{% for value, label in tiles %}<div class="tile"><b>{{ value }}</b><span>{{ label }}</span></div>{% endfor %}</div>
+
+<h2>What the data says</h2>
+<ol class="findings">{% for f in findings %}<li>{{ f }}</li>{% endfor %}</ol>
+
+<div class="step" style="margin-top:50px">Step 1</div>
+<h2 style="margin-top:4px">A data foundation that can be audited</h2>
+<p>Prices are auto-adjusted closes from Yahoo Finance, pinned to a fixed end date ({{ info.sample.end }}) and described in
+<code>data/manifest.json</code>. Three rules separate this from a typical correlation study:</p>
+<ul class="tight"><li><b>Align first, then compute returns.</b> Brent trades on days Oslo is closed. Returns are taken on the common
+calendar ({{ "{:,}".format(info.sample.trading_days) }} days), so a holiday is folded into the next return instead of pairing mismatched periods.</li>
+<li><b>No double counting.</b> Sector series are equal-weighted portfolios of their members. No index or ETF is averaged with its own constituents.</li>
+<li><b>Weekly returns for betas.</b> Oslo closes about six hours before Brent settles; Friday-to-Friday returns dilute that timing gap and the stale prices of small caps.</li></ul>
+<p>The benchmark is OSEBX, chained with OSEFX returns before {{ splice_date }} because Yahoo's OSEBX history starts there. In the
+{{ info.splice.overlap_days }}-day overlap the two have a return correlation of {{ "%.3f"|format(info.splice.return_correlation) }}.</p>
+<h3>Manual interventions (all of them)</h3>
+<ul class="tight note">{% for d in notes.dropped %}<li>{{ d }}</li>{% endfor %}{% for d in notes.trimmed %}<li>{{ d }}</li>{% endfor %}</ul>
+<p class="note">Still flagged but kept, because the moves are real or the issue is mild: {{ notes.flagged|join("; ") }}.</p>
+
+<div class="step" style="margin-top:50px">Step 2</div>
+<h2 style="margin-top:4px">Two oil betas, because there are two questions</h2>
+<div class="method"><code>r = α + β<sub>mkt</sub>·MARKET + β<sub>oil</sub>·BRENT + ε</code> on weekly log returns, Newey-West standard errors.<br>
+<b>Partial</b> beta: the index enters as it is — oil exposure <i>beyond</i> what the index already carries.
+<b>Total</b> beta: the index is first stripped of its own oil component — what happens to the stock when Brent moves, through every channel.
+Identity: total = partial + β<sub>mkt</sub> × (the index's own oil beta).</div>
+<img src="{{ fig['01_sector_betas'] }}" alt="Sector oil betas">
+<img src="{{ fig['02_market_rolling_beta'] }}" alt="Rolling oil beta of the index">
+<img src="{{ fig['03_then_vs_now'] }}" alt="Full sample versus last five years">
+<img src="{{ fig['04_sector_rolling_betas'] }}" alt="Rolling sector betas">
+
+<div class="step" style="margin-top:50px">Step 3</div>
+<h2 style="margin-top:4px">Event study: what happens when oil jumps</h2>
+<p>A shock is any day where the Brent return exceeds {{ ev.z_threshold }} trailing standard deviations (volatility measured up to the day
+before). Shocks within {{ ev.min_gap }} trading days of an accepted one are skipped, leaving {{ n_events }} events
+({{ n_up }} up, {{ n_down }} down). Abnormal returns use a market model fitted on days {{ ev.estimation_window[0] }} to {{ ev.estimation_window[1] }}.</p>
+<img src="{{ fig['05_event_paths'] }}" alt="Cumulative abnormal returns around oil shocks">
+<div class="scroll">{{ event_table }}</div>
+<p class="note">CAR = mean cumulative abnormal return over [0,+1], total measure (keeps everything oil did, removes other index noise).
+Shock beta = slope of that CAR on the oil move across events. Down-shocks are preceded by a weak index
+({{ pre_down }} over the five days before, t = {{ pre_down_t }}): many are demand scares, not supply news.</p>
+<img class="narrow" src="{{ fig['06_shock_vs_weekly_beta'] }}" alt="Shock beta versus weekly beta">
+
+<div class="step" style="margin-top:50px">Step 4</div>
+<h2 style="margin-top:4px">Scenario table — and whether it deserves trust</h2>
+<p>Expected move for a given Brent move, from total betas over the last {{ sc_years }} years. The interval covers uncertainty about the
+<i>expected</i> move. <b>P(same sign)</b> is the chance the stock actually moves in that direction in a week where Brent moves
+{{ "{:+.0%}".format(ref_shock) }}, given everything else that drives it.</p>
+<div class="scroll">{{ scenario_agg }}</div>
+<h3>Ten most and ten least oil-sensitive stocks</h3>
+<div class="scroll">{{ scenario_stocks }}</div>
+<img src="{{ fig['07_out_of_sample'] }}" alt="Out-of-sample test">
+<p class="note">For each shock, betas are re-estimated using only weeks that ended before it. Top-minus-bottom tercile spread on the shock
+days: {{ spread_impact }} (t = {{ spread_impact_t }}); in the following days: {{ spread_drift }} (t = {{ spread_drift_t }}).</p>
+
+<div class="step" style="margin-top:50px">Step 5</div>
+<h2 style="margin-top:4px">Regimes</h2>
+<img src="{{ fig['08_asymmetry'] }}" alt="Up versus down oil beta">
+<p>Splitting by trailing oil volatility instead (above or below its expanding median, known before the week starts) changes little:
+the index's beta is {{ "%.2f"|format(vol.beta_calm) }} in calm and {{ "%.2f"|format(vol.beta_turbulent) }} in turbulent periods
+(p = {{ "%.2f"|format(vol.p_diff) }}). The regime that matters is direction, not volatility.</p>
+
+<div class="step" style="margin-top:50px">Step 6</div>
+<h2 style="margin-top:4px">Side analysis: is there an oil factor in the returns themselves?</h2>
+<img class="narrow" src="{{ fig['09_pca'] }}" alt="PCA loadings">
+<p class="note">PC1 is the market. PC2 separates seafood from energy and has a {{ "%.2f"|format(pc2_oil) }} correlation with Brent:
+returns alone do not single out oil as the second driver of Oslo Børs.</p>
+
+<h2>All stocks</h2>
+<img class="tall" src="{{ fig['10_stock_betas'] }}" alt="Oil beta by stock">
+
+<h2>What this study cannot tell you</h2>
+<ul class="tight"><li><b>Survivorship.</b> The universe is today's listings with Yahoo history. Names that have left Yahoo's Oslo feed (PGS, Seadrill, Golden Ocean, Flex LNG) are missing, so the sample is tilted towards survivors.</li>
+<li><b>Correlation with a sign, not causation.</b> Brent moves for demand and supply reasons. A demand scare moves oil and equities together without oil causing anything.</li>
+<li><b>Equal weights, hand-made sectors.</b> Sector portfolios are not investable indices; Equinor counts as much as Panoro.</li>
+<li><b>USD oil, NOK stocks.</b> The krone's own oil sensitivity is part of the total beta by design and is not separated out.</li>
+<li><b>Vendor data.</b> Yahoo adjustments contain errors; every one found is listed above, others may remain.</li></ul>
+<p class="note" style="margin-top:40px">Generated by <code>oilbeta run</code>. Every number is in <code>results/tables/</code> and <code>results/oil_sensitivity.xlsx</code>; every assumption is in <code>configs/</code>.</p>
+</main></body></html>

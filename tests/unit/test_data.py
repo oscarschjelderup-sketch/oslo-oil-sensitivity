@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+from conftest import with_exceptions
 from oilbeta import MARKET, OIL, data
 
 
@@ -33,7 +34,7 @@ def test_sector_portfolio_is_equal_weighted_in_simple_returns(mini_cfg):
 
 
 def test_documented_exceptions_are_removed_from_daily_and_weekly(mini_cfg, mini_prices):
-    mini_cfg.raw["data_exceptions"] = {"drop_returns": [{"ticker": "AAA.OL", "date": "2020-01-03", "reason": "test"}]}
+    mini_cfg = with_exceptions(mini_cfg, {"drop_returns": [{"ticker": "AAA.OL", "date": "2020-01-03", "reason": "test"}]})
     panel = data.build_panel(mini_prices, mini_cfg)
     daily, weekly = data.daily_returns(panel, mini_cfg), data.weekly_returns(panel, mini_cfg)
     assert np.isnan(daily.loc["2020-01-03", "AAA.OL"])
@@ -43,7 +44,7 @@ def test_documented_exceptions_are_removed_from_daily_and_weekly(mini_cfg, mini_
 
 
 def test_history_start_trims_a_ticker(mini_cfg, mini_prices):
-    mini_cfg.raw["data_exceptions"] = {"history_start": {"CCC.OL": {"date": "2020-01-06", "reason": "test"}}}
+    mini_cfg = with_exceptions(mini_cfg, {"history_start": {"CCC.OL": {"date": "2020-01-06", "reason": "test"}}})
     panel = data.build_panel(mini_prices, mini_cfg)
     assert panel["CCC.OL"].first_valid_index() == pd.Timestamp("2020-01-06")
     assert panel["AAA.OL"].first_valid_index() < pd.Timestamp("2020-01-06")

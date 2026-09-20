@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from oilbeta import MARKET, OIL, betas, events, pca, regimes, scenarios
+from oilbeta import MARKET, OIL
+from oilbeta.analysis import betas, events, pca, regimes, scenarios
 
 
 @pytest.fixture

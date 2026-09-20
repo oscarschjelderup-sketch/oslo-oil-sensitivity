@@ -18,8 +18,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import MARKET, OIL, regimes, scenarios
-from .pipeline import Results
+from .. import MARKET, OIL
+from ..analysis import regimes, scenarios
+from ..pipeline import Results
 
 INDEX_NAME = "Oslo Børs index"
 ROLLING_STEP = 4          # weeks between plotted points; the latest point is always kept
@@ -76,7 +77,7 @@ def _rolling(res: Results, unit_ids: list[str]) -> dict:
 
 def _shocks(res: Results) -> dict:
     ev, cars, oos = res.tables["events"], res.tables["event_cars"], res.tables["oos_events"]
-    s = res.cfg.section("scenarios")
+    s = res.cfg.scenarios
     aggregates = list(res.meta.index[res.meta["kind"] != "stock"])
     impact = cars[cars["window"] == "impact"].pivot(index="event_id", columns="unit", values="car_total")
     drift = cars[cars["window"] == "drift"].pivot(index="event_id", columns="unit", values="car_total")
@@ -84,7 +85,7 @@ def _shocks(res: Results) -> dict:
 
     def predicted(event_id) -> pd.Series:
         past = scenarios._past_betas(res.weekly[aggregates], res.weekly[OIL], ev.loc[event_id, "date"],
-                                     s["window"], s["oos_min_history"])
+                                     s.window, s.oos_min_history)
         return np.expm1(past * oil_move.loc[event_id])
 
     recent = []
@@ -116,7 +117,7 @@ def build_payload(res: Results) -> dict:
     mroll = roll[roll["unit"] == MARKET]
     now = mroll.iloc[-1]
     oil_weekly = res.weekly[OIL]
-    vol_window = cfg.section("regimes")["vol_window"]
+    vol_window = cfg.regimes.vol_window
     vol = oil_weekly.rolling(vol_window).std() * math.sqrt(52)
     high = regimes.high_vol_flag(oil_weekly, vol_window)
     ev, oos = T["events"], T["oos_summary"]
@@ -129,8 +130,8 @@ def build_payload(res: Results) -> dict:
             "data_through": res.panel.index.max().strftime("%Y-%m-%d"), "sample_start": res.info["sample"]["start"],
             "live": cfg.is_live, "stale": bool(res.info.get("stale", False)),
             "n_stocks": len(cfg.tickers), "n_events": int(len(ev)),
-            "roll_window": cfg.section("betas")["rolling_window"], "scen_window": cfg.section("scenarios")["window"],
-            "z_threshold": cfg.section("events")["z_threshold"],
+            "roll_window": cfg.betas.rolling_window, "scen_window": cfg.scenarios.window,
+            "z_threshold": cfg.events.z_threshold,
             # optional footer links, set by the deploy workflow (relative or absolute URLs)
             "links": {k: v for k, v in {"Research report": os.environ.get("OILBETA_REPORT_URL"),
                                         "Workbook (xlsx)": os.environ.get("OILBETA_WORKBOOK_URL"),
@@ -164,7 +165,7 @@ def render(payload: dict) -> dict[str, str]:
                      take a page plus supporting files)
     * ``document`` - a complete stand-alone document with the payload inlined (opens from disk)
     """
-    template = resources.files("oilbeta").joinpath("templates/dashboard.html").read_text(encoding="utf-8")
+    template = resources.files("oilbeta.outputs").joinpath("templates/dashboard.html").read_text(encoding="utf-8")
     data = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     data_js = "window.OIL_DATA = " + data + ";\n"
     page = template.replace(MARKER, f'<script src="{DATA_FILE}"></script>')

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from scipy import stats
 
-from oilbeta.regression import auto_lags, newey_west_cov, ols, orthogonalise
+from oilbeta.stats import auto_lags, newey_west_cov, ols, orthogonalise
 
 
 def test_ols_matches_scipy_on_one_regressor(rng):

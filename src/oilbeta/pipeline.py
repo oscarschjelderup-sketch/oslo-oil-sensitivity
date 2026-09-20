@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from . import MARKET, OIL, betas, data, events, pca, regimes, scenarios
+from . import MARKET, OIL, data
+from .analysis import betas, events, pca, regimes, scenarios
 from .config import Config
 
 
@@ -25,7 +26,7 @@ def run(cfg: Config, refresh: bool = False, log=print, rolling_stocks: bool = Tr
         retries: int = 0, retry_wait: float = 45.0) -> Results:
     """Run all six steps. `rolling_stocks=False` keeps rolling betas to the index and sectors (the slow
     part is 60+ stocks x ~900 windows); the monitor needs them all, a regression test does not."""
-    b, e, s = cfg.section("betas"), cfg.section("events"), cfg.section("scenarios")
+    b, e, s = cfg.betas, cfg.events, cfg.scenarios
 
     log("1/6  data: snapshot, alignment, validation")
     stale = False
@@ -55,15 +56,15 @@ def run(cfg: Config, refresh: bool = False, log=print, rolling_stocks: bool = Tr
                           "trading_days": len(panel), "weeks": len(weekly), "stocks": len(cfg.tickers)}
 
     log("2/6  betas: full-sample and rolling two-factor regressions")
-    res.tables["betas_full"] = betas.beta_table(frame_w, meta, fac_w, b["min_history"], b["hac_lags"])
+    res.tables["betas_full"] = betas.beta_table(frame_w, meta, fac_w, b.min_history, b.hac_lags)
     rolling_frame = frame_w if rolling_stocks else frame_w[meta.index[meta["kind"] != "stock"]]
-    res.tables["betas_rolling"] = betas.rolling_betas(rolling_frame, fac_w, b["rolling_window"],
-                                                      b["rolling_min_obs"], b["hac_lags"])
+    res.tables["betas_rolling"] = betas.rolling_betas(rolling_frame, fac_w, b.rolling_window,
+                                                      b.rolling_min_obs, b.hac_lags)
 
     log("3/6  event study: rule-based oil shocks and abnormal returns")
-    est = tuple(e["estimation_window"])
-    ev = events.find_events(daily[OIL], e["z_threshold"], e["vol_window"], e["min_gap"], lead=-est[0], lag=e["min_post_days"])
-    cars = events.abnormal_returns(frame_d, fac_d, ev, est, e["windows"])
+    est = e.estimation_window
+    ev = events.find_events(daily[OIL], e.z_threshold, e.vol_window, e.min_gap, lead=-est[0], lag=e.min_post_days)
+    cars = events.abnormal_returns(frame_d, fac_d, ev, est, e.windows)
     res.tables["events"] = ev
     res.tables["event_cars"] = cars
     res.tables["event_summary_total"] = events.summarise(cars, "car_total")
@@ -73,15 +74,15 @@ def run(cfg: Config, refresh: bool = False, log=print, rolling_stocks: bool = Tr
     res.tables["event_paths"] = events.car_paths(frame_d[aggregates], fac_d, ev, est)
 
     log("4/6  scenarios and out-of-sample check")
-    res.tables["scenarios"] = scenarios.scenario_table(frame_w, meta, fac_w, s["window"], s["shocks"],
-                                                       b["min_history"])
-    oos = scenarios.out_of_sample(frame_w, fac_w, cars, ev, cfg.tickers, s["window"], s["oos_min_history"])
+    res.tables["scenarios"] = scenarios.scenario_table(frame_w, meta, fac_w, s.window, s.shocks,
+                                                       b.min_history)
+    oos = scenarios.out_of_sample(frame_w, fac_w, cars, ev, cfg.tickers, s.window, s.oos_min_history)
     res.tables["oos_events"] = oos
     res.tables["oos_summary"] = scenarios.summarise_oos(oos)
 
     log("5/6  regimes: up/down and calm/turbulent oil betas")
-    direction, volatility = regimes.regime_tables(frame_w, meta, fac_w, cfg.section("regimes")["vol_window"],
-                                                  b["min_history"])
+    direction, volatility = regimes.regime_tables(frame_w, meta, fac_w, cfg.regimes.vol_window,
+                                                  b.min_history)
     res.tables["regime_direction"], res.tables["regime_volatility"] = direction, volatility
 
     log("6/6  PCA on the cross-section of returns")

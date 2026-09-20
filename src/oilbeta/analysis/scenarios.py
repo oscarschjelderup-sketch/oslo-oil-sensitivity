@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from . import OIL
+from .. import OIL
 from .betas import beta_table
 
 

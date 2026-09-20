@@ -1,8 +1,24 @@
+import copy
+from dataclasses import replace
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
+import yaml
 
-from oilbeta.config import Config
+from oilbeta.config import Config, DataExceptions
+
+REPO = Path(__file__).resolve().parents[1]
+
+
+def study_dict() -> dict:
+    """The real study parameters as a plain dict, for tests that need to bend one or two of them."""
+    return copy.deepcopy(yaml.safe_load((REPO / "configs" / "study.yaml").read_text(encoding="utf-8")))
+
+
+def with_exceptions(cfg: Config, exceptions: dict) -> Config:
+    return replace(cfg, exceptions=DataExceptions.model_validate(exceptions))
 
 
 @pytest.fixture
@@ -12,19 +28,16 @@ def rng():
 
 @pytest.fixture
 def mini_cfg(tmp_path):
-    raw = {
-        "sample": {"start": "2020-01-01", "end": "2020-12-31"},
-        "factors": {
-            "oil": {"ticker": "BZ=F", "name": "Brent"},
-            "market": {"name": "Index", "early_ticker": "OLD.OL", "late_ticker": "NEW.OL",
-                       "splice_date": "2020-01-08"},
-            "context": {},
-        },
-        "betas": {"min_history": 1},
-        "validation": {"max_abs_daily_return": 0.5, "max_zero_return_share": 0.2},
-        "universe": {"Energy": {"AAA.OL": "Alpha", "BBB.OL": "Beta"}, "Fish": {"CCC.OL": "Gamma"}},
+    study = study_dict()
+    study["sample"] = {"start": "2020-01-01", "end": "2020-12-31"}
+    study["factors"] = {
+        "oil": {"ticker": "BZ=F", "name": "Brent"},
+        "market": {"name": "Index", "early_ticker": "OLD.OL", "late_ticker": "NEW.OL", "splice_date": "2020-01-08"},
+        "context": {},
     }
-    return Config(raw=raw, root=tmp_path)
+    study["betas"]["min_history"] = 1
+    universe = {"Energy": {"AAA.OL": "Alpha", "BBB.OL": "Beta"}, "Fish": {"CCC.OL": "Gamma"}}
+    return Config.from_dicts(study, universe, None, tmp_path)
 
 
 @pytest.fixture

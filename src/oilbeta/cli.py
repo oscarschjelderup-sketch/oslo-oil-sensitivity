@@ -8,12 +8,13 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import MARKET, OIL, betas, dashboard, data, pipeline, report
+from . import MARKET, OIL, data, outputs, pipeline
+from .analysis import betas
 from .config import load_config
 
 app = typer.Typer(add_completion=False, help="Oil-price sensitivity of Oslo Børs stocks and sectors.")
 console = Console()
-DEFAULT_CONFIG = Path("configs/oslo.yaml")
+DEFAULT_CONFIG = Path("configs")
 
 
 @app.callback()
@@ -43,7 +44,7 @@ def run(config: Path = DEFAULT_CONFIG, refresh: bool = typer.Option(False, help=
     """Run all six steps and write tables, workbook, figures and the HTML report."""
     cfg = load_config(config)
     res = pipeline.run(cfg, refresh=refresh, log=lambda msg: console.print(f"[dim]{msg}[/]"))
-    paths = report.write_all(res)
+    paths = outputs.write_all(res)
     full, oos = res.tables["betas_full"], res.tables["oos_summary"]
     console.print(f"\nOslo Børs oil beta: [bold]{full.loc[MARKET, 'beta_oil_total']:.2f}[/] "
                   f"({full.loc[MARKET, 'total_lo']:.2f} to {full.loc[MARKET, 'total_hi']:.2f})")
@@ -60,8 +61,7 @@ def live(config: Path = DEFAULT_CONFIG,
     """Refresh prices up to yesterday's close, re-estimate everything and rebuild the live monitor."""
     cfg = load_config(config).as_live()
     res = pipeline.run(cfg, refresh=not offline, retries=retries, log=lambda msg: console.print(f"[dim]{msg}[/]"))
-    report.write_tables(res, cfg.results_dir)
-    paths = dashboard.write(res, cfg.results_dir)
+    paths = outputs.write_live(res)
     now = res.tables["betas_rolling"].query("unit == @MARKET").iloc[-1]
     state = ("[yellow]cached data (download failed)[/]" if res.info["stale"]
              else "cached snapshot (offline rebuild)" if offline else "[green]fresh data[/]")
@@ -81,10 +81,10 @@ def stock(ticker: str, config: Path = DEFAULT_CONFIG):
         import yfinance as yf
         extra = yf.download(ticker, start=cfg.start, end=cfg.end, auto_adjust=True, progress=False)["Close"]
         prices[ticker] = extra.squeeze().reindex(prices.index)
-        cfg.raw["universe"].setdefault("Ad hoc", {})[ticker] = ticker
+        cfg = cfg.with_stock(ticker)
     panel = data.build_panel(prices, cfg)
     weekly = data.weekly_returns(panel, cfg)
-    window = cfg.section("scenarios")["window"]
+    window = cfg.scenarios.window
     table = Table("Sample", "Weeks", "Market beta", "Oil beta (partial)", "Oil beta (total)", "95% interval", "Brent +10%")
     for label, w in (("Full history", weekly), (f"Last {window // 52} years", weekly.iloc[-window:])):
         est = betas.oil_betas(w[ticker].to_numpy(), w[MARKET].to_numpy(), w[OIL].to_numpy())

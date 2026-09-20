@@ -15,8 +15,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from . import MARKET, OIL
-from .regression import ols
+from .. import MARKET, OIL
+from ..stats import ols
 
 
 def high_vol_flag(oil: pd.Series, vol_window: int, burn_in: int = 52) -> pd.Series:

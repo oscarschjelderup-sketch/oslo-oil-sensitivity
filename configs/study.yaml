@@ -1,0 +1,52 @@
+# How the study is done. The stocks are in universe.yaml, manual data fixes in data_exceptions.yaml.
+# Unknown keys are rejected when the file is loaded, so a typo cannot silently become a default.
+
+sample:
+  start: "2007-07-30"      # first day of Brent front-month history on Yahoo
+  end: "2026-09-11"        # fixed end date (a Friday) -> re-running reproduces the same numbers
+
+factors:
+  oil:
+    ticker: "BZ=F"
+    name: "Brent front-month (USD)"
+  market:
+    name: "Oslo Børs Benchmark Index"
+    # OSEBX only goes back to 2013-03 on Yahoo. Before that we chain the returns of
+    # OSEFX (the capped fund version of the same index). In the 2013-15 overlap the
+    # two have a 0.99 return correlation; `oilbeta fetch` re-checks this every time.
+    early_ticker: "OSEFX.OL"
+    late_ticker: "OSEBX.OL"
+    splice_date: "2013-03-05"
+  context:
+    usdnok: "NOK=X"
+    vix: "^VIX"
+
+betas:
+  frequency: weekly          # Friday-to-Friday; dilutes the Oslo-close vs Brent-settlement timing gap
+  rolling_window: 104        # weeks
+  rolling_min_obs: 78
+  min_history: 156           # weeks needed before a stock gets a full-sample beta
+  hac_lags: auto             # Newey-West, floor(4 * (T/100)^(2/9))
+
+events:
+  z_threshold: 2.5           # |oil return| / trailing vol
+  vol_window: 250            # trading days, lagged one day (no look-ahead)
+  min_gap: 11                # trading days between accepted events -> [0,+10] windows never overlap
+  min_post_days: 1           # a shock enters once its impact window exists; later windows stay missing until they do
+  estimation_window: [-270, -21]
+  windows:                   # [start, end] in trading days relative to the shock day
+    pre: [-5, -1]
+    impact: [0, 1]           # Oslo closes ~6h before Brent settles, so the reaction spans day 0 and +1
+    drift: [2, 10]
+
+scenarios:
+  window: 260                # weeks of history behind the scenario betas
+  shocks: [-0.20, -0.10, 0.10, 0.20]
+  oos_min_history: 104       # weeks of past data required before an event enters the out-of-sample test
+
+regimes:
+  vol_window: 26             # weeks of trailing oil volatility
+
+validation:
+  max_abs_daily_return: 0.50 # flag (never silently drop) anything larger
+  max_zero_return_share: 0.20
