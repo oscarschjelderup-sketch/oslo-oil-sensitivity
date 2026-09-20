@@ -1,0 +1,50 @@
+# Rebuilds the live monitor after the Oslo close on trading days and publishes it to GitHub Pages.
+# One-time setup after pushing the repository: Settings -> Pages -> Source: "GitHub Actions".
+name: Live monitor
+
+on:
+  schedule:
+    - cron: "30 5 * * 2-6"   # 05:30 UTC Tue-Sat = the morning after each trading day (data runs to yesterday's close)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+      - run: oilbeta live
+      - name: Assemble site
+        run: |
+          mkdir -p site
+          cp live/dashboard.html site/index.html
+          cp live/dashboard.json site/
+          cp live/oil_sensitivity.xlsx site/
+          cp results/report.html site/report.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

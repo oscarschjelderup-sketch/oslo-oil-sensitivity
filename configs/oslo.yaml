@@ -1,0 +1,138 @@
+# Everything that shapes the results lives in this file.
+
+sample:
+  start: "2007-07-30"      # first day of Brent front-month history on Yahoo
+  end: "2026-09-11"        # fixed end date (a Friday) -> re-running reproduces the same numbers
+
+factors:
+  oil:
+    ticker: "BZ=F"
+    name: "Brent front-month (USD)"
+  market:
+    name: "Oslo Børs Benchmark Index"
+    # OSEBX only goes back to 2013-03 on Yahoo. Before that we chain the returns of
+    # OSEFX (the capped fund version of the same index). In the 2013-15 overlap the
+    # two have a 0.99 return correlation; `oilbeta fetch` re-checks this every time.
+    early_ticker: "OSEFX.OL"
+    late_ticker: "OSEBX.OL"
+    splice_date: "2013-03-05"
+  context:
+    usdnok: "NOK=X"
+    vix: "^VIX"
+
+betas:
+  frequency: weekly          # Friday-to-Friday; dilutes the Oslo-close vs Brent-settlement timing gap
+  rolling_window: 104        # weeks
+  rolling_min_obs: 78
+  min_history: 156           # weeks needed before a stock gets a full-sample beta
+  hac_lags: auto             # Newey-West, floor(4 * (T/100)^(2/9))
+
+events:
+  z_threshold: 2.5           # |oil return| / trailing vol
+  vol_window: 250            # trading days, lagged one day (no look-ahead)
+  min_gap: 11                # trading days between accepted events -> [0,+10] windows never overlap
+  min_post_days: 1           # a shock enters once its impact window exists; later windows stay missing until they do
+  estimation_window: [-270, -21]
+  windows:                   # [start, end] in trading days relative to the shock day
+    pre: [-5, -1]
+    impact: [0, 1]           # Oslo closes ~6h before Brent settles, so the reaction spans day 0 and +1
+    drift: [2, 10]
+
+scenarios:
+  window: 260                # weeks of history behind the scenario betas
+  shocks: [-0.20, -0.10, 0.10, 0.20]
+  oos_min_history: 104       # weeks of past data required before an event enters the out-of-sample test
+
+regimes:
+  vol_window: 26             # weeks of trailing oil volatility
+
+validation:
+  max_abs_daily_return: 0.50 # flag (never silently drop) anything larger
+  max_zero_return_share: 0.20
+
+# Every manual intervention in the data is listed here with its reason. `oilbeta fetch`
+# flags extreme prints; each one was checked by hand and only vendor errors are removed.
+# Real crashes (NAS 2020, FRO 2011, DNO 2009, BORR 2020) stay in the sample.
+data_exceptions:
+  drop_returns:              # the return on this date is set to missing (daily and that week)
+    - {ticker: AKSO.OL, date: "2024-11-25", reason: "Extraordinary dividend (~NOK 21/share) missing from Yahoo's adjustment: a -52% print that was really a cash payout"}
+    - {ticker: SOFF.OL, date: "2020-10-21", reason: "Restructuring / share consolidation mis-adjusted by Yahoo (-98% print)"}
+    - {ticker: BORR.OL, date: "2021-12-13", reason: "2:1 reverse split applied one day late by Yahoo (price doubles, then reverts)"}
+    - {ticker: BORR.OL, date: "2021-12-14", reason: "Second leg of the same split artefact"}
+  history_start:             # earlier history belongs to a different business
+    NEL.OL: {date: "2014-10-01", reason: "Listed shell was DiaGenic (diagnostics) until it bought NEL Hydrogen in Oct 2014"}
+
+universe:
+  "Exploration & production":
+    EQNR.OL: Equinor
+    AKRBP.OL: Aker BP
+    VAR.OL: Vår Energi
+    DNO.OL: DNO
+    OKEA.OL: OKEA
+    PEN.OL: Panoro Energy
+    BWE.OL: BW Energy
+  "Oil service & drilling":
+    SUBC.OL: Subsea 7
+    TGS.OL: TGS
+    AKSO.OL: Aker Solutions
+    ODL.OL: Odfjell Drilling
+    BORR.OL: Borr Drilling
+    SOFF.OL: Solstad Offshore
+    DOFG.OL: DOF Group
+    BWO.OL: BW Offshore
+    ARCH.OL: Archer
+  "Tankers & gas shipping":
+    FRO.OL: Frontline
+    HAFNI.OL: Hafnia
+    OET.OL: Okeanis Eco Tankers
+    BWLPG.OL: BW LPG
+    ODF.OL: Odfjell
+    SNI.OL: Stolt-Nielsen
+  "Other shipping":
+    WAWI.OL: Wallenius Wilhelmsen
+    HAUTO.OL: Höegh Autoliners
+    MPCC.OL: MPC Container Ships
+    WWI.OL: Wilh. Wilhelmsen Holding
+  "Seafood":
+    MOWI.OL: Mowi
+    SALM.OL: SalMar
+    LSG.OL: Lerøy Seafood
+    BAKKA.OL: Bakkafrost
+    AUSS.OL: Austevoll Seafood
+    GSF.OL: Grieg Seafood
+  "Banks & insurance":
+    DNB.OL: DNB
+    STB.OL: Storebrand
+    GJF.OL: Gjensidige
+    MING.OL: SpareBank 1 SMN
+    NONG.OL: SpareBank 1 Nord-Norge
+    SB1NO.OL: SpareBank 1 Sør-Norge
+    PROT.OL: Protector Forsikring
+  "Industrials & materials":
+    NHY.OL: Norsk Hydro
+    YAR.OL: Yara
+    ELK.OL: Elkem
+    BRG.OL: Borregaard
+    KOG.OL: Kongsberg Gruppen
+    TOM.OL: Tomra
+    VEI.OL: Veidekke
+    AFG.OL: AF Gruppen
+    HEX.OL: Hexagon Composites
+  "Consumer, telecom & real estate":
+    ORK.OL: Orkla
+    TEL.OL: Telenor
+    EPR.OL: Europris
+    KID.OL: Kid
+    SATS.OL: SATS
+    NAS.OL: Norwegian Air Shuttle
+    ENTRA.OL: Entra
+  "Technology & renewables":
+    NOD.OL: Nordic Semiconductor
+    ATEA.OL: Atea
+    BOUV.OL: Bouvet
+    AUTO.OL: AutoStore
+    NEL.OL: Nel
+    SCATC.OL: Scatec
+  "Investment companies":
+    AKER.OL: Aker
+    BONHR.OL: Bonheur
