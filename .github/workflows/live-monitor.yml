@@ -15,8 +15,8 @@ on:
   push:
     branches: [main]
     paths: ["src/**", "configs/**", "uv.lock", ".github/workflows/live-monitor.yml"]
-  release:
-    types: [published]      # a new pinned paper -> rebuild the site so it serves the new report
+  # A new paper release also rebuilds the site, via paper-release.yml: Pages only accepts
+  # deployments from main, so the release event cannot deploy from its tag directly.
 
 permissions:
   contents: read

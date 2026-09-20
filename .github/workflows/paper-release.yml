@@ -1,0 +1,20 @@
+# When a new pinned paper is published as a release, rebuild the site so it serves the new report.
+# The Pages environment only accepts deployments from main, and a release event runs on its tag,
+# so this workflow just asks live-monitor.yml to run on main.
+name: Paper release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  actions: write
+
+jobs:
+  rebuild-site:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run the live-monitor workflow on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run live-monitor.yml --repo "$GITHUB_REPOSITORY" --ref main
