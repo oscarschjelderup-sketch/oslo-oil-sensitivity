@@ -55,10 +55,11 @@ def run(config: Path = DEFAULT_CONFIG, refresh: bool = typer.Option(False, help=
 
 @app.command()
 def live(config: Path = DEFAULT_CONFIG,
-         offline: bool = typer.Option(False, help="Rebuild from the cached live snapshot without downloading.")):
+         offline: bool = typer.Option(False, help="Rebuild from the cached live snapshot without downloading."),
+         retries: int = typer.Option(0, help="Extra download attempts before falling back to the cached snapshot.")):
     """Refresh prices up to yesterday's close, re-estimate everything and rebuild the live monitor."""
     cfg = load_config(config).as_live()
-    res = pipeline.run(cfg, refresh=not offline, log=lambda msg: console.print(f"[dim]{msg}[/]"))
+    res = pipeline.run(cfg, refresh=not offline, retries=retries, log=lambda msg: console.print(f"[dim]{msg}[/]"))
     report.write_tables(res, cfg.results_dir)
     paths = dashboard.write(res, cfg.results_dir)
     now = res.tables["betas_rolling"].query("unit == @MARKET").iloc[-1]

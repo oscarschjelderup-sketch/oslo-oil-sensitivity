@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -58,7 +58,7 @@ def fetch_prices(cfg: Config, refresh: bool = False) -> pd.DataFrame:
 
 def _write_manifest(cfg: Config, prices: pd.DataFrame, path) -> None:
     manifest = {
-        "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "created_utc": datetime.now(UTC).isoformat(timespec="seconds"),
         "source": "Yahoo Finance via yfinance (auto-adjusted closes)",
         "sample": {"start": cfg.start, "end": cfg.end},
         "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),

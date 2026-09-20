@@ -1,11 +1,20 @@
-# Rebuilds the live monitor after the Oslo close on trading days and publishes it to GitHub Pages.
-# One-time setup after pushing the repository: Settings -> Pages -> Source: "GitHub Actions".
+# The run model of this project: GitHub Actions rebuilds the monitor the morning after every
+# trading day and publishes it to GitHub Pages. Nothing has to be running on anyone's PC.
+#
+# One-time setup after the first push: Settings -> Pages -> Source: "GitHub Actions".
+#
+# Yahoo sometimes throttles cloud IPs. The job therefore retries the download, keeps the last
+# good price snapshot in the Actions cache, and serves that (clearly marked on the page) when
+# a download fails. It only turns red when the page has been stale for more than a week.
 name: Live monitor
 
 on:
   schedule:
-    - cron: "30 5 * * 2-6"   # 05:30 UTC Tue-Sat = the morning after each trading day (data runs to yesterday's close)
+    - cron: "30 5 * * 2-6"   # 05:30 UTC Tue-Sat: data runs to yesterday's close
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["src/**", "configs/**", "results/report.html", ".github/workflows/live-monitor.yml"]
 
 permissions:
   contents: read
@@ -19,22 +28,58 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      age_days: ${{ steps.fresh.outputs.age_days }}
+      stale: ${{ steps.fresh.outputs.stale }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
-          cache: pip
-      - run: pip install -e ".[dev]"
-      - run: pytest -q
-      - run: oilbeta live
-      - name: Assemble site
+          enable-cache: true
+      - run: uv sync --frozen
+
+      - name: Restore the last good price snapshot
+        uses: actions/cache/restore@v4
+        with:
+          path: data/raw/prices_live.csv
+          key: live-prices-${{ github.run_id }}
+          restore-keys: live-prices-
+
+      - name: Rebuild the monitor
+        env:
+          OILBETA_REPORT_URL: report.html
+          OILBETA_WORKBOOK_URL: oil_sensitivity.xlsx
+          OILBETA_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: uv run oilbeta live --retries 3
+
+      - name: How fresh is it?
+        id: fresh
+        run: |
+          uv run python - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, datetime
+          meta = json.load(open("live/dashboard.json", encoding="utf-8"))["meta"]
+          age = (datetime.date.today() - datetime.date.fromisoformat(meta["data_through"])).days
+          print(f"age_days={age}")
+          print(f"stale={'true' if meta['stale'] else 'false'}")
+          EOF
+          cat "$GITHUB_OUTPUT"
+
+      - name: Keep this snapshot for next time
+        if: steps.fresh.outputs.stale == 'false'
+        uses: actions/cache/save@v4
+        with:
+          path: data/raw/prices_live.csv
+          key: live-prices-${{ github.run_id }}
+
+      - name: Assemble the site
         run: |
           mkdir -p site
           cp live/dashboard.html site/index.html
-          cp live/dashboard.json site/
-          cp live/oil_sensitivity.xlsx site/
+          cp live/dashboard.json live/oil_sensitivity.xlsx site/
           cp results/report.html site/report.html
+          touch site/.nojekyll
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
@@ -48,3 +93,17 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  alert:
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Warn when the download failed, fail when the page is a week old
+        run: |
+          if [ "${{ needs.build.outputs.stale }}" = "true" ]; then
+            echo "::warning::Yahoo download failed; the page shows the last good snapshot (${{ needs.build.outputs.age_days }} days old)."
+          fi
+          if [ "${{ needs.build.outputs.age_days }}" -gt 7 ]; then
+            echo "::error::Prices are ${{ needs.build.outputs.age_days }} days old."
+            exit 1
+          fi

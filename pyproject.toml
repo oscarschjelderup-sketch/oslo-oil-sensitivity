@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
 oilbeta = "oilbeta.cli:app"
@@ -38,3 +38,17 @@ oilbeta = ["templates/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = ["ignore::FutureWarning", "ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 125
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+  "E731",   # small lambdas as local helpers are fine
+  "E501",   # line length is a formatting matter, not something CI should fail on
+  "B905",   # zip() over axes/labels built from the same list two lines earlier
+]

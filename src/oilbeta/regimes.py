@@ -34,15 +34,15 @@ def split_beta(r: np.ndarray, m: np.ndarray | None, o_a: np.ndarray, o_b: np.nda
     ok = np.isfinite(r) & np.isfinite(o_a) & np.isfinite(o_b)
     if m is not None:
         ok &= np.isfinite(m)
-    r, O = r[ok], np.column_stack([o_a[ok], o_b[ok]])
+    r, oil_terms = r[ok], np.column_stack([o_a[ok], o_b[ok]])
     if m is None:
-        res = ols(r, O, list(labels), hac_lags)
+        res = ols(r, oil_terms, list(labels), hac_lags)
     else:
-        m_perp = ols(m[ok], O, list(labels), hac_lags=0).resid
-        res = ols(r, np.column_stack([m_perp, O]), ["market_perp", *labels], hac_lags)
+        m_perp = ols(m[ok], oil_terms, list(labels), hac_lags=0).resid
+        res = ols(r, np.column_stack([m_perp, oil_terms]), ["market_perp", *labels], hac_lags)
     diff, t, p = res.test_equal(labels[1], labels[0])
     a, b = labels
-    return {"nobs": res.nobs, f"n_{a}": int((O[:, 0] != 0).sum()), f"n_{b}": int((O[:, 1] != 0).sum()),
+    return {"nobs": res.nobs, f"n_{a}": int((oil_terms[:, 0] != 0).sum()), f"n_{b}": int((oil_terms[:, 1] != 0).sum()),
             f"beta_{a}": res.coef(a), f"se_{a}": res.stderr(a),
             f"beta_{b}": res.coef(b), f"se_{b}": res.stderr(b),
             "difference": diff, "t_diff": t, "p_diff": p}

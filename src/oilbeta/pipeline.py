@@ -1,6 +1,7 @@
 """Run every step and collect the results in one object."""
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -20,18 +21,27 @@ class Results:
     info: dict = field(default_factory=dict)
 
 
-def run(cfg: Config, refresh: bool = False, log=print) -> Results:
+def run(cfg: Config, refresh: bool = False, log=print, rolling_stocks: bool = True,
+        retries: int = 0, retry_wait: float = 45.0) -> Results:
+    """Run all six steps. `rolling_stocks=False` keeps rolling betas to the index and sectors (the slow
+    part is 60+ stocks x ~900 windows); the monitor needs them all, a regression test does not."""
     b, e, s = cfg.section("betas"), cfg.section("events"), cfg.section("scenarios")
 
     log("1/6  data: snapshot, alignment, validation")
     stale = False
-    try:
-        prices = data.fetch_prices(cfg, refresh=refresh)
-    except Exception as exc:                       # network down, Yahoo hiccup: keep serving the last good snapshot
-        if not (refresh and cfg.prices_path.exists()):
-            raise
-        log(f"     download failed ({exc}); using the cached snapshot")
-        prices, stale = data.fetch_prices(cfg, refresh=False), True
+    for attempt in range(retries + 1):
+        try:
+            prices = data.fetch_prices(cfg, refresh=refresh)
+            break
+        except Exception as exc:                   # network down, Yahoo hiccup or a throttled cloud IP
+            if attempt < retries:
+                log(f"     download failed ({exc}); retrying in {retry_wait:.0f}s")
+                time.sleep(retry_wait)
+            elif refresh and cfg.prices_path.exists():
+                log(f"     download failed ({exc}); serving the last good snapshot")
+                prices, stale = data.fetch_prices(cfg, refresh=False), True
+            else:
+                raise
     panel = data.build_panel(prices, cfg)
     weekly, daily = data.weekly_returns(panel, cfg), data.daily_returns(panel, cfg)
     frame_w, meta = betas.units_frame(weekly, data.sector_returns(weekly, cfg), cfg)
@@ -46,7 +56,8 @@ def run(cfg: Config, refresh: bool = False, log=print) -> Results:
 
     log("2/6  betas: full-sample and rolling two-factor regressions")
     res.tables["betas_full"] = betas.beta_table(frame_w, meta, fac_w, b["min_history"], b["hac_lags"])
-    res.tables["betas_rolling"] = betas.rolling_betas(frame_w, fac_w, b["rolling_window"],
+    rolling_frame = frame_w if rolling_stocks else frame_w[meta.index[meta["kind"] != "stock"]]
+    res.tables["betas_rolling"] = betas.rolling_betas(rolling_frame, fac_w, b["rolling_window"],
                                                       b["rolling_min_obs"], b["hac_lags"])
 
     log("3/6  event study: rule-based oil shocks and abnormal returns")

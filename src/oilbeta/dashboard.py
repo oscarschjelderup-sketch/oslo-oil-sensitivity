@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import json
 import math
-from datetime import datetime, timezone
+import os
+from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path
 
@@ -124,12 +125,16 @@ def build_payload(res: Results) -> dict:
                                         "oil_day0": _clean(np.expm1(ev["oil_day0"].iloc[-1]))}
     return {
         "meta": {
-            "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "generated": datetime.now(UTC).isoformat(timespec="seconds"),
             "data_through": res.panel.index.max().strftime("%Y-%m-%d"), "sample_start": res.info["sample"]["start"],
             "live": cfg.is_live, "stale": bool(res.info.get("stale", False)),
             "n_stocks": len(cfg.tickers), "n_events": int(len(ev)),
             "roll_window": cfg.section("betas")["rolling_window"], "scen_window": cfg.section("scenarios")["window"],
             "z_threshold": cfg.section("events")["z_threshold"],
+            # optional footer links, set by the deploy workflow (relative or absolute URLs)
+            "links": {k: v for k, v in {"Research report": os.environ.get("OILBETA_REPORT_URL"),
+                                        "Workbook (xlsx)": os.environ.get("OILBETA_WORKBOOK_URL"),
+                                        "Code and method": os.environ.get("OILBETA_REPO_URL")}.items() if v},
         },
         "brent": {"last": _clean(res.panel[OIL].iloc[-1]), "chg_1w": _clean(_pct_change(res.panel[OIL], 5)),
                   "chg_1m": _clean(_pct_change(res.panel[OIL], 21))},

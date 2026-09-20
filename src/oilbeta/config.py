@@ -27,7 +27,7 @@ class Config:
     def is_live(self) -> bool:
         return self.live_end is not None
 
-    def as_live(self, today: date | None = None) -> "Config":
+    def as_live(self, today: date | None = None) -> Config:
         """Same study, moving end date: everything up to yesterday's close.
 
         Yesterday rather than today, because an intraday run would otherwise mix half-finished

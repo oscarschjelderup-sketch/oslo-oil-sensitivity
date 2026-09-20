@@ -156,6 +156,7 @@ footer{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padd
   </section>
 
   <footer>
+    <div id="footLinks" hidden></div>
     <div id="footMethod"></div>
     <div>Betas are co-movement, not causation: Brent moves for demand as well as supply reasons. Universe is today's listings (survivorship). Prices: Yahoo Finance; vendor errors that were found are removed and documented in the repository. Not investment advice.</div>
   </footer>
@@ -363,6 +364,8 @@ let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(renderRolli
 })();
 
 $("footMethod").textContent = "Method: r = α + β·index + β_oil·Brent on Friday-to-Friday log returns since " + M.sample_start.slice(0,4) + "; the index is first stripped of its own oil component, so betas are total effects. " + M.n_events + " rule-based oil shocks feed the event study. Code, tests and the pinned research report live in the oslo-oil-sensitivity repository.";
+(function links(){ const L = M.links || {}, host = $("footLinks"), keys = Object.keys(L); if (!keys.length) return; host.hidden = false;
+  keys.forEach((k, i) => { if (i) host.appendChild(document.createTextNode(" · ")); const a = H("a", "", k, host); a.href = L[k]; a.style.color = "var(--pos)"; }); })();
 renderWhatIf(); renderRolling();
 })();
 </script>

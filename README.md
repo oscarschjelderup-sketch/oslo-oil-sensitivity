@@ -1,5 +1,10 @@
 # How much oil is left in Oslo Børs?
 
+[![CI](https://github.com/oscarschjelderup-sketch/oslo-oil-sensitivity/actions/workflows/ci.yml/badge.svg)](https://github.com/oscarschjelderup-sketch/oslo-oil-sensitivity/actions/workflows/ci.yml)
+[![Live monitor](https://github.com/oscarschjelderup-sketch/oslo-oil-sensitivity/actions/workflows/live-monitor.yml/badge.svg)](https://github.com/oscarschjelderup-sketch/oslo-oil-sensitivity/actions/workflows/live-monitor.yml)
+
+**Live monitor, rebuilt after every trading day: https://oscarschjelderup-sketch.github.io/oslo-oil-sensitivity/**
+
 **A factor study of 63 Norwegian stocks and 10 sectors, 2007–2026: how much each one moves when Brent moves, how sure
 we can be about it, and whether that knowledge survives an out-of-sample test.**
 
@@ -51,11 +56,17 @@ stock, and a predicted-versus-realised scorecard that gains a row each time Bren
 soon as its two-day impact window exists; its drift window stays empty until those days have happened, never a partial
 sum. If the download fails, the last good snapshot is served and the page says so.
 
-Keeping it current:
+### How it runs
 
-- **Windows Task Scheduler**: run [scripts/update_live.ps1](scripts/update_live.ps1) on weekday mornings.
-- **GitHub Pages**: [.github/workflows/live-monitor.yml](.github/workflows/live-monitor.yml) runs the tests, rebuilds the
-  monitor the morning after every trading day and deploys it (set Pages source to "GitHub Actions" once).
+GitHub Actions is the run model; nothing has to be switched on anywhere.
+
+- [live-monitor.yml](.github/workflows/live-monitor.yml) runs at 05:30 UTC the morning after each trading day (and on
+  every change to the code): it installs the locked environment, runs `oilbeta live --retries 3` and deploys the page,
+  the pinned report and the workbook to GitHub Pages. Yahoo sometimes throttles cloud IPs, so the last good price
+  snapshot is kept in the Actions cache and served, visibly marked, when a download fails. The job only goes red when
+  the page has been stale for more than a week.
+- [ci.yml](.github/workflows/ci.yml) lints and runs the test suite on every push and pull request.
+- For a local refresh on a schedule there is [scripts/update_live.ps1](scripts/update_live.ps1) (Windows Task Scheduler).
 
 ## What it does
 
@@ -108,12 +119,12 @@ They are tied by an identity that the test suite checks to machine precision:
 ## Quick start
 
 ```bash
-pip install -e ".[dev]"
+uv sync --extra dev         # exact, locked environment (uv.lock); or: pip install -e ".[dev]"
 oilbeta run                 # all six steps on the pinned snapshot -> results/
 oilbeta live                # same model on prices up to yesterday -> live/dashboard.html
 oilbeta fetch               # data snapshot + validation report only
 oilbeta stock NAS.OL        # one stock, including tickers outside the configured universe
-pytest                      # 32 tests on synthetic data with known answers
+pytest                      # 34 tests; ruff check . for lint
 ```
 
 `oilbeta run --refresh` downloads a new snapshot. Without it the cached snapshot is reused, so results are identical
@@ -135,6 +146,10 @@ in [configs/oslo.yaml](configs/oslo.yaml).
 - **No look-ahead anywhere.** Shock thresholds use volatility up to the day before; regime flags use an expanding
   median; out-of-sample betas use only weeks that ended before each event. Each has a test that tampers with the
   future and checks the past does not change.
+- **The numbers are locked twice.** `uv.lock` pins every dependency, and two golden tests pin the results: one re-runs
+  the study on the pinned snapshot and compares 22 headline numbers with the README (wherever the raw prices exist),
+  the other pushes a seeded synthetic market through the whole chain, report and dashboard included, on every push.
+  A refactor cannot move a number without a test going red.
 - **Null results are reported.** The drift test and the volatility-regime split find nothing, and the report shows them.
 
 ## What this study cannot tell you
@@ -165,9 +180,10 @@ src/oilbeta/
   plots.py  report.py    figures, HTML report, Excel/CSV export
   dashboard.py           payload + template for the interactive live monitor
   pipeline.py  cli.py    orchestration and the `oilbeta` command
-scripts/update_live.ps1  scheduled local refresh
-.github/workflows/       scheduled rebuild + GitHub Pages deploy
-tests/                   32 tests, all on synthetic data with known answers
+scripts/update_live.ps1  optional local refresh
+.github/workflows/       ci.yml (lint + tests), live-monitor.yml (scheduled rebuild + GitHub Pages)
+tests/                   34 tests: synthetic data with known answers + two golden regression tests
+uv.lock                  locked environment
 results/                 committed output of the pinned snapshot
 live/                    output of `oilbeta live` (git-ignored, rebuilt on every refresh)
 data/manifest.json       what was downloaded, when, and its SHA-256 (raw prices are not redistributed)

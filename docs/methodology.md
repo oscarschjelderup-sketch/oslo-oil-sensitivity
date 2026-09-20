@@ -141,6 +141,7 @@ stop more than ten days before the requested end, in which case the previous sna
 
 ## Tests
 
-All 32 tests use synthetic data with known answers: recovery of planted betas, the partial/total identity, HAC against
+Two golden tests pin the results (the pinned snapshot's headline numbers, and a seeded synthetic market pushed through
+the whole chain). The other 32 tests use synthetic data with known answers: recovery of planted betas, the partial/total identity, HAC against
 a naive double-loop, no-look-ahead checks that tamper with future data, the holiday-alignment rule, and an
 out-of-sample test that must find skill on impact and none on drift in a world built that way.

@@ -24,7 +24,7 @@ BLUE, ORANGE, GREEN = "#005A9E", "#D9622B", "#1F9E78"
 INK, MUTED, GRID, GREY = "#003255", "#5B6B75", "#E4E8EB", "#8F9DA6"
 
 plt.rcParams.update({
-    "font.family": "Arial", "font.size": 9, "text.color": INK,
+    "font.family": ["Arial", "DejaVu Sans"], "font.size": 9, "text.color": INK,
     "axes.edgecolor": GRID, "axes.labelcolor": MUTED, "axes.titlesize": 10.5, "axes.titleweight": "bold",
     "axes.titlelocation": "left", "axes.spines.top": False, "axes.spines.right": False,
     "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.6, "axes.axisbelow": True,
@@ -97,7 +97,7 @@ def stock_betas(res: Results):
                     textcoords="offset points", fontsize=8.5, fontweight="bold", color=INK, va="center",
                     annotation_clip=False)
         y += 0.55
-        for unit, row in g.iterrows():
+        for _, row in g.iterrows():
             sig = row["total_lo"] > 0 or row["total_hi"] < 0
             colour = BLUE if sig else GREY
             ax.hlines(y, row["total_lo"], row["total_hi"], color=colour, lw=1.3, zorder=2)
@@ -191,7 +191,6 @@ def then_vs_now(res: Results):
 
 def event_paths(res: Results):
     p = res.tables["event_paths"]
-    full = res.tables["betas_full"]
     pick = [OIL, MARKET, "Exploration & production", "Oil service & drilling", "Banks & insurance", "Seafood"]
     titles = {OIL: "Brent itself", MARKET: "Oslo Børs index"}
     fig, axes = plt.subplots(2, 3, figsize=(7.2, 4.9), sharex=True)
@@ -302,16 +301,16 @@ def asymmetry(res: Results):
 
 
 def pca_loadings(res: Results):
-    l = res.tables["pca_loadings"].join(res.meta[["name", "sector"]])
+    load = res.tables["pca_loadings"].join(res.meta[["name", "sector"]])
     s = res.tables["pca_summary"]
-    groups = {"E&P and oil service": (l["sector"].isin(["Exploration & production", "Oil service & drilling"]), BLUE),
-              "Seafood": (l["sector"] == "Seafood", ORANGE)}
+    groups = {"E&P and oil service": (load["sector"].isin(["Exploration & production", "Oil service & drilling"]), BLUE),
+              "Seafood": (load["sector"] == "Seafood", ORANGE)}
     other = ~(groups["E&P and oil service"][0] | groups["Seafood"][0])
     fig, ax = plt.subplots(figsize=(5.6, 4.6))
     _zero(ax, vertical=False)
-    ax.scatter(l.loc[other, "PC1"], l.loc[other, "PC2"], s=34, color=GREY, edgecolor="white", linewidth=1, label="Other")
+    ax.scatter(load.loc[other, "PC1"], load.loc[other, "PC2"], s=34, color=GREY, edgecolor="white", linewidth=1, label="Other")
     for label, (mask, colour) in groups.items():
-        ax.scatter(l.loc[mask, "PC1"], l.loc[mask, "PC2"], s=34, color=colour, edgecolor="white", linewidth=1, label=label)
+        ax.scatter(load.loc[mask, "PC1"], load.loc[mask, "PC2"], s=34, color=colour, edgecolor="white", linewidth=1, label=label)
     ax.set_xlabel(f"Loading on PC1 ({s.loc['PC1', 'variance_share']:.0%} of variance, corr. with index {s.loc['PC1', MARKET]:.2f})")
     ax.set_ylabel(f"Loading on PC2 ({s.loc['PC2', 'variance_share']:.0%}, corr. with Brent {s.loc['PC2', OIL]:.2f})")
     ax.legend(loc="center left", bbox_to_anchor=(0.0, 0.36), fontsize=8.5, handletextpad=0.2)
