@@ -1,6 +1,7 @@
 # Methodology
 
-Every choice below maps to a line in [configs/oslo.yaml](../configs/oslo.yaml) or a function in `src/oilbeta/`.
+Every choice below maps to a line in [configs/](../configs) or a function in `src/oilbeta/`. The reasoning behind the
+main choices is in [decisions/](decisions/README.md).
 
 ## 1. Data
 
@@ -37,7 +38,7 @@ written reason; genuine crashes stay in the sample:
 
 | Ticker | Date | What happened |
 |---|---|---|
-| AKSO.OL | 2024-11-25 | Extraordinary dividend of about NOK 21 per share is missing from Yahoo's dividend history, so the ex-date shows as a −52% return. Close went 50.30 → 29.76 with no dividend recorded. |
+| AKSO.OL | 2024-11-25 | Extraordinary dividend of about NOK 21 per share is missing from Yahoo's dividend history, so the ex-date shows as a −41% return. Close went 50.30 → 29.76 with no dividend recorded. |
 | SOFF.OL | 2020-10-21 | Yahoo records a 0.001 split ratio on this date, during the 2020 restructuring, and the adjusted series shows a −98% one-day print. |
 | BORR.OL | 2021-12-13/14 | 2:1 reverse split applied a day late: price doubles, then reverts. |
 | NEL.OL | before 2014-10 | The listed company was DiaGenic (diagnostics). History trimmed. |
@@ -142,6 +143,6 @@ stop more than ten days before the requested end, in which case the previous sna
 ## Tests
 
 Two golden tests pin the results (the pinned snapshot's headline numbers, and a seeded synthetic market pushed through
-the whole chain). The other 32 tests use synthetic data with known answers: recovery of planted betas, the partial/total identity, HAC against
+the whole chain). The other 45 tests cover the config rules and use synthetic data with known answers: recovery of planted betas, the partial/total identity, HAC against
 a naive double-loop, no-look-ahead checks that tamper with future data, the holiday-alignment rule, and an
 out-of-sample test that must find skill on impact and none on drift in a world built that way.

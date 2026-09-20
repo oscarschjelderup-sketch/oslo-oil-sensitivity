@@ -23,8 +23,8 @@ shipping, the link to oil over the last five years cannot be told apart from zer
 | ![Sector betas](results/figures/01_sector_betas.png) | ![Full sample vs last five years](results/figures/03_then_vs_now.png) |
 | ![Event study](results/figures/05_event_paths.png) | ![Out-of-sample test](results/figures/07_out_of_sample.png) |
 
-The full write-up with every table is in [results/report.html](results/report.html); the numbers are in
-[results/oil_sensitivity.xlsx](results/oil_sensitivity.xlsx) and [results/tables/](results/tables).
+The full write-up is the [research report](https://oscarschjelderup-sketch.github.io/oslo-oil-sensitivity/paper/report.html); every number behind it is in
+[results/tables/](results/tables) and in the workbook attached to the [latest paper release](https://github.com/oscarschjelderup-sketch/oslo-oil-sensitivity/releases/latest).
 
 ## Findings
 
@@ -124,12 +124,15 @@ oilbeta run                 # all six steps on the pinned snapshot -> results/
 oilbeta live                # same model on prices up to yesterday -> live/dashboard.html
 oilbeta fetch               # data snapshot + validation report only
 oilbeta stock NAS.OL        # one stock, including tickers outside the configured universe
-pytest                      # 34 tests; ruff check . for lint
+pytest tests/unit           # 45 fast tests (~5 s); plain `pytest` adds the two golden tests (~1 min)
+ruff check .                # lint
 ```
 
 `oilbeta run --refresh` downloads a new snapshot. Without it the cached snapshot is reused, so results are identical
-from run to run. Everything that shapes the results (sample, universe, thresholds, windows, data exceptions) lives
-in [configs/oslo.yaml](configs/oslo.yaml).
+from run to run. Everything that shapes the results lives in three validated files under [configs/](configs):
+[study.yaml](configs/study.yaml) (sample, factors, windows, thresholds), [universe.yaml](configs/universe.yaml)
+(stocks and sectors) and [data_exceptions.yaml](configs/data_exceptions.yaml) (every manual data fix, with its
+reason). Unknown keys, impossible windows, a ticker in two sectors or a data fix without a reason stop the run.
 
 ## Design decisions worth defending
 
@@ -140,7 +143,7 @@ in [configs/oslo.yaml](configs/oslo.yaml).
   [regression.py](src/oilbeta/regression.py), tested against scipy, against White's estimator at lag zero and against
   a naive double-loop implementation.
 - **Flags, never silent fixes.** The validation step found four vendor errors (an unadjusted NOK 21 extraordinary
-  dividend in Aker Solutions that shows up as a −52% day, two mis-applied share consolidations) and one ticker whose
+  dividend in Aker Solutions that shows up as a −41% day, two mis-applied share consolidations) and one ticker whose
   early history is a different company (Nel was DiaGenic until 2014). Each is removed by an explicit line in the config.
   Real crashes (Norwegian 2020, Frontline 2011) stay in.
 - **No look-ahead anywhere.** Shock thresholds use volatility up to the day before; regime flags use an expanding
@@ -168,26 +171,34 @@ Methodology in full: [docs/methodology.md](docs/methodology.md).
 ## Repository layout
 
 ```
-configs/oslo.yaml        sample, universe, parameters, documented data exceptions
+configs/
+  study.yaml               sample, factors, windows, thresholds
+  universe.yaml            63 stocks in 10 sectors
+  data_exceptions.yaml     every manual data fix, with its reason
 src/oilbeta/
-  data.py                snapshot, manifest, alignment, sector portfolios, validation
-  regression.py          OLS + Newey-West, equality tests, orthogonalisation
-  betas.py               partial/total oil betas, full-sample and rolling
-  events.py              shock detection, abnormal returns, CAR paths, shock betas
-  scenarios.py           scenario table, out-of-sample rank test
-  regimes.py             up/down and calm/turbulent split betas
-  pca.py                 PCA on the return cross-section
-  plots.py  report.py    figures, HTML report, Excel/CSV export
-  dashboard.py           payload + template for the interactive live monitor
-  pipeline.py  cli.py    orchestration and the `oilbeta` command
-scripts/update_live.ps1  optional local refresh
-.github/workflows/       ci.yml (lint + tests), live-monitor.yml (scheduled rebuild + GitHub Pages)
-tests/                   34 tests: synthetic data with known answers + two golden regression tests
-uv.lock                  locked environment
-results/                 committed output of the pinned snapshot
-live/                    output of `oilbeta live` (git-ignored, rebuilt on every refresh)
-data/manifest.json       what was downloaded, when, and its SHA-256 (raw prices are not redistributed)
+  config.py                pydantic models: the three files are validated before anything runs
+  data/                    snapshot.py (download, manifest) · align.py (calendar, returns, sectors) · validate.py
+  stats/                   ols.py · hac.py: numpy only, arrays in and numbers out
+  analysis/                betas · events · scenarios · regimes · pca
+  outputs/                 tables · figures · report · dashboard · templates/
+  pipeline.py  cli.py      the six steps in order, and the `oilbeta` command
+tests/
+  unit/                    config, data, stats, analysis, live mode: synthetic data with known answers
+  integration/             golden tests: the pinned snapshot's numbers, and a synthetic market end to end
+docs/
+  methodology.md           every formula and parameter
+  decisions/               six short notes on why it is built this way
+.github/workflows/         ci.yml (lint + tests) · live-monitor.yml (scheduled rebuild + GitHub Pages)
+scripts/update_live.ps1    optional local refresh
+uv.lock                    locked environment
+results/                   tables and figures of the pinned snapshot (the report and workbook are release assets)
+live/                      output of `oilbeta live` (git-ignored, rebuilt on every refresh)
+data/manifest.json         what was downloaded, when, and its SHA-256 (raw prices are not redistributed)
 ```
+
+The layering is one-way: `stats` knows nothing about pandas or tickers, `analysis` knows nothing about files, and
+`outputs` never computes a result. Why things are built the way they are is written down in
+[docs/decisions/](docs/decisions/README.md).
 
 Companion project: [equity-research-engine](../equity-research-engine), which turns a ticker into a sell-side style
 deck, Excel model and dashboard. `oilbeta stock <ticker>` gives the oil-sensitivity line for the risk section of such a case.

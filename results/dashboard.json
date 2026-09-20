@@ -1,6 +1,6 @@
 {
  "meta": {
-  "generated": "2026-09-17T16:45:20+00:00",
+  "generated": "2026-09-20T21:07:24+00:00",
   "data_through": "2026-09-11",
   "sample_start": "2007-07-31",
   "live": false,
@@ -9,7 +9,8 @@
   "n_events": 69,
   "roll_window": 104,
   "scen_window": 260,
-  "z_threshold": 2.5
+  "z_threshold": 2.5,
+  "links": {}
  },
  "brent": {
   "last": 104.61,

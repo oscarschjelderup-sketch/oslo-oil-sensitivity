@@ -17,3 +17,13 @@ data/raw/
 # Output of `oilbeta live` changes daily; it is rebuilt by the scheduled job, not versioned.
 live/
 data/manifest_live.json
+
+# Built deliverables of the pinned paper. They are published as GitHub Release assets
+# (tag paper-<sample end>) and on the Pages site, not versioned: a 2 MB HTML with embedded
+# figures makes every diff unreadable. Tables and figures stay in git: they are what the README cites.
+results/report.html
+results/oil_sensitivity.xlsx
+results/dashboard.html
+results/dashboard.page.html
+results/dashboard.json
+results/dashboard-data.js
