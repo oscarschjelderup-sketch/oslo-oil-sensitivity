@@ -53,4 +53,5 @@ ignore = [
   "E731",   # small lambdas as local helpers are fine
   "E501",   # line length is a formatting matter, not something CI should fail on
   "B905",   # zip() over axes/labels built from the same list two lines earlier
+  "B008",   # typer declares CLI options as call-valued defaults
 ]

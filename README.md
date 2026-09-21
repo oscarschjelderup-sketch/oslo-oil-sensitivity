@@ -137,6 +137,7 @@ oilbeta run                 # all six steps on the pinned snapshot -> results/
 oilbeta live                # same model on prices up to yesterday -> live/dashboard.html
 oilbeta fetch               # data snapshot + validation report only
 oilbeta stock NAS.OL        # one stock, including tickers outside the configured universe
+oilbeta stock EQNR.OL --json oil/EQNR.OL.json   # the same, as a factsheet another tool can read
 pytest tests/unit           # 56 fast tests (~10 s); plain `pytest` adds the two golden tests (~1 min)
 ruff check .                # lint
 ```
@@ -215,7 +216,24 @@ The layering is one-way: `stats` knows nothing about pandas or tickers, `analysi
 `outputs` never computes a result. Why things are built the way they are is written down in
 [docs/decisions/](docs/decisions/README.md).
 
-Companion project: [equity-research-engine](../equity-research-engine), which turns a ticker into a sell-side style
-deck, Excel model and dashboard. `oilbeta stock <ticker>` gives the oil-sensitivity line for the risk section of such a case.
+## Feeding a valuation case
+
+`oilbeta stock <TICKER> --json <path>` writes a small versioned document (schema `oilbeta.stock/1`) with both betas,
+their intervals, the scenarios, the share of weekly variance oil explains — and the caveats above, so they travel with
+the numbers.
+
+The companion project [equity-research-engine](https://github.com/oscarschjelderup-sketch/equity-research-engine) reads it into the risk section of an investment case, which then
+states a measured exposure instead of the usual sentence about commodity prices:
+
+> **Oil price:** a 20% fall in Brent has come with an 8.4% fall in the share (5.2% to 11.5% interval, 260 weeks to
+> 2026-09-11); that is oil risk beyond the index's own. Oil explains 19% of weekly variance and the move goes that way
+> 98% of the time. *— Subsea 7*
+
+> **Oil price:** no measurable direct exposure — an interval of −0.04 to +0.09 that spans zero; a higher oil price has
+> been a cost: holding the index fixed, the share has moved −0.12% per 1% move in Brent. *— Mowi*
+
+The two projects share the schema, not an import, so either can be rewritten independently. On the engine's side the
+factsheet is context and never a driver: it does not touch the forecast, the WACC or the DCF, and a test there asserts a
+case runs to identical numbers with and without it.
 
 Data: Yahoo Finance via `yfinance`. For education and research; not investment advice. MIT licence.

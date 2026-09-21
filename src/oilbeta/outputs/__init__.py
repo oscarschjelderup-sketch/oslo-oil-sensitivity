@@ -4,7 +4,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..pipeline import Results
-from . import dashboard, figures, report, tables
+from . import dashboard, factsheet, figures, report, tables
+
+__all__ = ["dashboard", "factsheet", "figures", "report", "tables", "write_all", "write_live"]
 
 
 def write_all(res: Results) -> dict[str, Path]:

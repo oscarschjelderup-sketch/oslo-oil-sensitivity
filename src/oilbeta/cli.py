@@ -73,7 +73,8 @@ def live(config: Path = DEFAULT_CONFIG,
 
 
 @app.command()
-def stock(ticker: str, config: Path = DEFAULT_CONFIG):
+def stock(ticker: str, config: Path = DEFAULT_CONFIG,
+          json_out: Path = typer.Option(None, "--json", help="Also write a factsheet another tool can read (schema oilbeta.stock/1).")):
     """Oil sensitivity of one stock (any Yahoo ticker on the Oslo calendar, not only the configured universe)."""
     cfg = load_config(config)
     prices = data.fetch_prices(cfg)
@@ -93,6 +94,12 @@ def stock(ticker: str, config: Path = DEFAULT_CONFIG):
                       f"{(1.1 ** est['beta_oil_total'] - 1):+.1%}")
     console.print(f"[bold]{cfg.names.get(ticker, ticker)}[/]")
     console.print(table)
+    if json_out:
+        sectors = data.sector_returns(weekly, cfg)
+        frame, meta = betas.units_frame(weekly, sectors, cfg)
+        table_all = betas.beta_table(frame[sectors.columns], meta, weekly[[MARKET, OIL]], cfg.betas.min_history)
+        doc = outputs.factsheet.build(cfg, weekly, ticker, sector_betas=table_all)
+        console.print(f"  factsheet {outputs.factsheet.write(doc, json_out)}")
 
 
 if __name__ == "__main__":

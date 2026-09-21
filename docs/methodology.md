@@ -183,6 +183,15 @@ average since 2015) is close to the pre-crash level, so most of the "decline" is
 FRED publishes with about a week's lag, so this runs for the pinned paper only. The inputs are cached and fingerprinted
 in the manifest like any other snapshot.
 
+## The factsheet
+
+`oilbeta stock <TICKER> --json <path>` writes one stock's sensitivity as a versioned JSON document
+(`oilbeta.stock/1`, `outputs/factsheet.py`): both betas with Newey-West intervals and p-values over the full history and
+the recent window, the scenario table, the share of weekly variance oil explains, sector context where the ticker is in
+the universe, and the caveats. It is the contract with [equity-research-engine](https://github.com/oscarschjelderup-sketch/equity-research-engine),
+which puts it in the risk section of a case. The schema is versioned so either project can be rewritten alone; a reader
+that does not recognise the major version refuses the file rather than guessing.
+
 ## Live mode
 
 `oilbeta live` sets the sample end to yesterday (an intraday run would otherwise mix half-finished daily bars into the
