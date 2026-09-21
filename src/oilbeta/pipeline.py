@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from . import MARKET, OIL, data
-from .analysis import betas, events, pca, regimes, scenarios
+from .analysis import betas, events, pca, regimes, robustness, scenarios, shocktype
 from .config import Config
 
 
@@ -65,11 +65,16 @@ def run(cfg: Config, refresh: bool = False, log=print, rolling_stocks: bool = Tr
     est = e.estimation_window
     ev = events.find_events(daily[OIL], e.z_threshold, e.vol_window, e.min_gap, lead=-est[0], lag=e.min_post_days)
     cars = events.abnormal_returns(frame_d, fac_d, ev, est, e.windows)
+    impact_oil = cars[cars["window"] == "impact"].groupby("event_id")["oil_move"].first()
+    ev = shocktype.classify_events(ev, panel, impact_oil, e.windows["impact"])
     res.tables["events"] = ev
     res.tables["event_cars"] = cars
     res.tables["event_summary_total"] = events.summarise(cars, "car_total")
     res.tables["event_summary_relative"] = events.summarise(cars, "car_relative")
     res.tables["shock_betas"] = events.shock_betas(cars)
+    res.tables["shock_type_counts"] = shocktype.type_counts(ev)
+    res.tables["shock_betas_by_type"] = shocktype.betas_by_type(cars, ev, meta)
+    res.tables["shock_betas_net_of_world"] = shocktype.betas_net_of_world(cars, ev, meta)
     aggregates = meta.index[meta["kind"] != "stock"]
     res.tables["event_paths"] = events.car_paths(frame_d[aggregates], fac_d, ev, est)
 
@@ -90,4 +95,15 @@ def run(cfg: Config, refresh: bool = False, log=print, rolling_stocks: bool = Tr
     comp = pca.return_pca(weekly[cfg.tickers], weekly[[MARKET, OIL, *context]])
     res.tables["pca_summary"], res.tables["pca_loadings"] = comp["summary"], comp["loadings"]
     res.info["pca"] = dict(comp["summary"].attrs)
+
+    if cfg.study.robustness is not None and not cfg.is_live:
+        log("+    robustness: another oil series, a longer sample")
+        try:
+            extra = data.fetch_robustness(cfg, refresh=refresh)
+            check = robustness.oil_series_check(cfg, prices, extra["fred"], extra["long"])
+            res.tables["robustness_oil_series"], res.tables["robustness_rolling"] = check["summary"], check["rolling"]
+            res.info["robustness"] = check["agreement"]
+        except Exception as exc:                   # an optional check must never take the study down with it
+            log(f"     skipped ({exc})")
+            res.info["robustness_skipped"] = str(exc)
     return res

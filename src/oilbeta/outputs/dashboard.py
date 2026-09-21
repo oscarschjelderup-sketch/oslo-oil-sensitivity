@@ -93,6 +93,8 @@ def _shocks(res: Results) -> dict:
         pred = predicted(event_id)
         recent.append({
             "date": ev.loc[event_id, "date"].strftime("%Y-%m-%d"), "z": _clean(ev.loc[event_id, "z"]),
+            "type": ev.loc[event_id, "shock_type"] if "shock_type" in ev and isinstance(ev.loc[event_id, "shock_type"], str) else None,
+            "world_move": _clean(np.expm1(ev.loc[event_id, "world_move"])) if "world_move" in ev else None,
             "oil_move": _clean(np.expm1(oil_move.loc[event_id])),
             "idx_pred": _clean(pred.get(MARKET)), "idx_real": _clean(np.expm1(impact.loc[event_id, MARKET])),
             "spearman": _clean(oos["spearman_impact"].get(event_id)) if "spearman_impact" in oos else None,
@@ -107,6 +109,7 @@ def _shocks(res: Results) -> dict:
                 for u in aggregates if u in pred.index and np.isfinite(impact.loc[event_id, u])]
         rows.sort(key=lambda r: -r["pred"])
         latest = {"date": recent[0]["date"], "oil_move": recent[0]["oil_move"], "spearman": recent[0]["spearman"],
+                  "type": recent[0]["type"], "world_move": recent[0]["world_move"],
                   "n_stocks": _clean(oos["n_stocks"].get(event_id)) if len(oos) else None, "rows": rows}
     return {"recent": recent, "latest": latest}
 

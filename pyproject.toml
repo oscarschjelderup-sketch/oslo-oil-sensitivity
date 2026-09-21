@@ -16,6 +16,7 @@ dependencies = [
   "numpy>=1.26",
   "scipy>=1.11",
   "yfinance>=0.2.50",
+  "curl_cffi>=0.7",
   "matplotlib>=3.8",
   "openpyxl>=3.1",
   "pyyaml>=6",

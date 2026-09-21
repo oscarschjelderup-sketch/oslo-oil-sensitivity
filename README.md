@@ -38,8 +38,16 @@ The full write-up is the [research report](https://oscarschjelderup-sketch.githu
 4. **Sensitivity is stable; predictability is absent.** Betas estimated only on past data rank stocks correctly in the
    *next* shock: mean rank correlation +0.28 (t = 10.5), positive in 90% of shocks. The same ranking says nothing about
    the days that follow (−0.01, t = −0.3). This is a risk tool, not a trading signal, and the report says so.
-5. **The downside beta is larger.** The index's oil beta is 0.37 in weeks when oil falls and 0.19 when it rises
-   (p = 0.012), because large oil declines tend to be demand scares that hit all equities.
+5. **The downside beta is larger — because the downside is where the demand scares are.** The index's oil beta is 0.37
+   in weeks when oil falls and 0.19 when it rises (p = 0.012). Labelling each shock by whether the S&P 500 moved with
+   oil or against it: 79% of the large declines are demand-type against 50% of the large rises. The index reacts with a
+   beta of 0.30 to demand-type shocks and 0.09 to supply-type ones (p = 0.002); E&P reacts the same to both (0.56 and
+   0.57). Energy responds to the oil price, the rest of the market mostly to the news that moved it.
+6. **The high betas were a crash-era level, and nothing depends on the vendor.** Re-running everything on Brent *spot*
+   from FRED instead of the Yahoo future gives an index beta of 0.25 against 0.29 and the same stock ranking (rank
+   correlation 0.99). Starting the sample in 2005 instead of 2007: two-year windows ending before the autumn-2008 crash
+   average 0.23, windows ending 2009–2013 average 0.51, and the average since 2015 is 0.21. So the "decline" is largely
+   the 2008 crash leaving the rolling window.
 
 ## Two modes: a pinned paper and a live monitor
 
@@ -102,6 +110,11 @@ flowchart LR
 | 4 Scenarios | What should I expect if Brent moves 10%? And should I believe it? | Expected move with interval from recent betas, the probability the stock actually moves that way, and an out-of-sample rank test on shocks the betas never saw |
 | 5 Regimes | Is the beta the same up and down, calm and turbulent? | Split-beta regressions with equality tests; regime flags use only past information |
 | 6 PCA | Do returns alone reveal an oil factor? | PCA on the cross-section of weekly returns (not on engineered columns) |
+| + Shock types | Is this the effect of oil, or of the news that moved oil? | Each shock labelled demand-type or supply-type by the sign of the S&P 500 move over the same two days; separate shock betas, an equality test, and a version that holds the world move fixed |
+| + Robustness | Does the answer depend on the vendor or on where the sample starts? | The whole beta step re-run with Brent spot from FRED, and with stock prices from 2005 |
+
+Across units, p-values come with Benjamini-Hochberg q-values: with 63 stocks, a 5% test alone produces about three
+"significant" betas from nothing. The report and figures use a 5% false discovery rate.
 
 ### Partial versus total oil beta
 
@@ -124,7 +137,7 @@ oilbeta run                 # all six steps on the pinned snapshot -> results/
 oilbeta live                # same model on prices up to yesterday -> live/dashboard.html
 oilbeta fetch               # data snapshot + validation report only
 oilbeta stock NAS.OL        # one stock, including tickers outside the configured universe
-pytest tests/unit           # 45 fast tests (~5 s); plain `pytest` adds the two golden tests (~1 min)
+pytest tests/unit           # 56 fast tests (~10 s); plain `pytest` adds the two golden tests (~1 min)
 ruff check .                # lint
 ```
 
@@ -159,10 +172,12 @@ reason). Unknown keys, impossible windows, a ticker in two sectors or a data fix
 
 - **Survivorship.** The universe is today's listings with Yahoo history. PGS, Seadrill, Golden Ocean and Flex LNG are
   no longer on Yahoo's Oslo feed, so the sample is tilted towards survivors.
-- **Co-movement, not causation.** Brent moves for demand and supply reasons. Down-shocks in particular are preceded by
-  a weak index (−1.4% over the prior five days), the signature of demand scares.
+- **Co-movement, not causation.** Brent moves for demand and supply reasons. The shock-type split measures how much
+  that matters (it is most of the non-energy oil beta) but does not remove it: the label is assigned after the fact,
+  from the same two days as the reaction it explains.
 - **Equal weights, hand-made sectors.** Sector portfolios are not investable indices.
 - **USD oil, NOK stocks.** The krone's own oil sensitivity is part of the total beta by design.
+- **One vendor for stock prices.** The oil series is cross-checked against FRED, but the Oslo prices are Yahoo's alone.
 - **Index history is spliced.** OSEBX on Yahoo starts in 2013; earlier returns come from OSEFX (0.99 return
   correlation in the 625-day overlap, re-checked on every fetch).
 
@@ -177,17 +192,17 @@ configs/
   data_exceptions.yaml     every manual data fix, with its reason
 src/oilbeta/
   config.py                pydantic models: the three files are validated before anything runs
-  data/                    snapshot.py (download, manifest) · align.py (calendar, returns, sectors) · validate.py
-  stats/                   ols.py · hac.py: numpy only, arrays in and numbers out
-  analysis/                betas · events · scenarios · regimes · pca
+  data/                    sources.py (Yahoo, FRED) · snapshot.py (cache, manifest) · align.py · validate.py
+  stats/                   ols.py · hac.py · multiple.py: numpy only, arrays in and numbers out
+  analysis/                betas · events · shocktype · scenarios · regimes · pca · robustness
   outputs/                 tables · figures · report · dashboard · templates/
   pipeline.py  cli.py      the six steps in order, and the `oilbeta` command
 tests/
-  unit/                    config, data, stats, analysis, live mode: synthetic data with known answers
+  unit/                    config, data, sources, stats, analysis, shock types, live mode: synthetic data with known answers
   integration/             golden tests: the pinned snapshot's numbers, and a synthetic market end to end
 docs/
   methodology.md           every formula and parameter
-  decisions/               six short notes on why it is built this way
+  decisions/               eight short notes on why it is built this way
 .github/workflows/         ci.yml (lint + tests) · live-monitor.yml (scheduled rebuild + GitHub Pages)
 scripts/update_live.ps1    optional local refresh
 uv.lock                    locked environment

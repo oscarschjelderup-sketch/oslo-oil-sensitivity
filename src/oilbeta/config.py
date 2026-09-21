@@ -119,6 +119,11 @@ class Validation(Strict):
     max_zero_return_share: float = Field(gt=0, le=1)
 
 
+class Robustness(Strict):
+    fred_brent: str
+    long_start: date
+
+
 class Study(Strict):
     sample: Sample
     factors: Factors
@@ -127,6 +132,13 @@ class Study(Strict):
     scenarios: Scenarios
     regimes: Regimes
     validation: Validation
+    robustness: Robustness | None = None
+
+    @model_validator(mode="after")
+    def _long_sample_is_longer(self):
+        if self.robustness and self.robustness.long_start >= self.sample.start:
+            raise ValueError("robustness.long_start must be earlier than sample.start")
+        return self
 
 
 # --- data_exceptions.yaml -------------------------------------------------------

@@ -11,6 +11,10 @@ EXCEL_SHEETS = {
     "betas_full": "Betas (full sample)",
     "scenarios": "Scenarios (recent betas)",
     "shock_betas": "Shock betas",
+    "shock_type_counts": "Shock types",
+    "shock_betas_by_type": "Shock betas by type",
+    "shock_betas_net_of_world": "Shock betas net of world",
+    "robustness_oil_series": "Robustness (oil series)",
     "event_summary_total": "Event CARs (total)",
     "event_summary_relative": "Event CARs (vs index)",
     "events": "Oil shocks",
@@ -36,6 +40,8 @@ def write_tables(res: Results, out_dir: Path) -> None:
         df.to_csv(tables / f"{name}.csv", float_format="%.5f")
     with pd.ExcelWriter(out_dir / "oil_sensitivity.xlsx", engine="openpyxl") as xl:
         for name, sheet in EXCEL_SHEETS.items():
+            if name not in res.tables:                 # optional steps (robustness) may be absent
+                continue
             df = res.tables[name].copy()
             for col in df.select_dtypes(include=["datetimetz", "datetime"]).columns:
                 df[col] = df[col].dt.date

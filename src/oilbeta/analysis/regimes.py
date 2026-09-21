@@ -17,6 +17,7 @@ import pandas as pd
 
 from .. import MARKET, OIL
 from ..stats import ols
+from .betas import add_q_values
 
 
 def high_vol_flag(oil: pd.Series, vol_window: int, burn_in: int = 52) -> pd.Series:
@@ -64,4 +65,5 @@ def regime_tables(frame: pd.DataFrame, meta: pd.DataFrame, factors: pd.DataFrame
         info = meta.loc[unit].to_dict()
         direction.append({"unit": unit, **info, **split_beta(r, control, o_down, o_up, ("down", "up"))})
         volatility.append({"unit": unit, **info, **split_beta(r, control, o_calm, o_turb, ("calm", "turbulent"))})
-    return pd.DataFrame(direction).set_index("unit"), pd.DataFrame(volatility).set_index("unit")
+    return (add_q_values(pd.DataFrame(direction).set_index("unit"), {"p_diff": "q_diff"}),
+            add_q_values(pd.DataFrame(volatility).set_index("unit"), {"p_diff": "q_diff"}))

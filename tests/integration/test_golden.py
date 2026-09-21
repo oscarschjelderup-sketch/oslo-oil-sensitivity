@@ -12,6 +12,7 @@ Two layers:
 """
 import hashlib
 import json
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -86,38 +87,44 @@ SECTORS = {"Exploration & production": (1.0, 0.50), "Oil service & drilling": (1
 def synthetic_config(tmp_path: Path) -> Config:
     study = study_dict()                                   # the real parameters, a synthetic sample and universe
     study["sample"] = {"start": "2008-01-01", "end": "2016-12-30"}
+    study.pop("robustness")                                # the robustness check downloads; this test must not
     universe = {s: {f"{s[:3].upper()}{i}.OL": f"{s.split()[0]} {i}" for i in range(4)} for s in SECTORS}
     return Config.from_dicts(study, universe, None, tmp_path)
 
 
 def synthetic_prices(cfg: Config) -> pd.DataFrame:
-    rng = np.random.default_rng(20260911)
+    """A market with planted betas. Each series draws from its own seeded stream, keyed by ticker, so
+    adding or removing one series never shifts another - otherwise a config change that cannot matter
+    (one more context ticker) would silently rewrite the whole dataset and break the pins below."""
+    stream = lambda name: np.random.default_rng([20260911, zlib.crc32(name.encode())])   # noqa: E731
     idx = pd.bdate_range(cfg.start, cfg.end, name="Date")
     n = len(idx)
-    oil = rng.standard_t(df=4, size=n) * 0.015                      # fat tails -> real oil shocks
-    market = 0.3 * oil + rng.normal(scale=0.009, size=n)
+    oil = stream("oil").standard_t(df=4, size=n) * 0.015             # fat tails -> real oil shocks
+    market = 0.3 * oil + stream("market").normal(scale=0.009, size=n)
     level = lambda r: 100 * np.exp(np.cumsum(r))                     # noqa: E731
     cols = {cfg.oil_ticker: level(oil)}
     index_level = level(market)
     splice = pd.Timestamp(cfg.market.splice_date)
     cols[cfg.market.early_ticker] = np.where(idx <= splice + pd.Timedelta(days=120), index_level, np.nan)
     cols[cfg.market.late_ticker] = np.where(idx >= splice, index_level * 7.0, np.nan)
-    for ticker in cfg.context.values():
-        cols[ticker] = level(rng.normal(scale=0.006, size=n))
+    for role, ticker in cfg.context.items():
+        # the world index loads lightly on oil, so large oil moves split into demand- and supply-type shocks
+        loading = 0.10 if role == "world" else 0.0
+        cols[ticker] = level(loading * oil + stream(ticker).normal(scale=0.012 if role == "world" else 0.006, size=n))
     for sector, members in cfg.universe.items():
         b_mkt, b_oil = SECTORS[sector]
         for ticker in members:
-            cols[ticker] = level(b_mkt * market + b_oil * oil + rng.normal(scale=0.014, size=n))
+            cols[ticker] = level(b_mkt * market + b_oil * oil + stream(ticker).normal(scale=0.014, size=n))
     return pd.DataFrame(cols, index=idx)
 
 
 SYNTHETIC = {
-    "index_beta_full": 0.298333, "index_beta_lo": 0.260508, "index_beta_hi": 0.336157,
-    "index_beta_latest_window": 0.298561, "shock_beta_ep": 0.747326,
-    "oos_spearman_impact": 0.632895, "oos_t": 18.721530, "oos_spearman_drift": -0.029102,
-    "index_beta_down": 0.288535, "index_beta_up": 0.310068, "pc1_share": 0.468299, "scenario_ep_10": 0.082027,
+    "index_beta_full": 0.282892, "index_beta_lo": 0.244654, "index_beta_hi": 0.321130,
+    "index_beta_latest_window": 0.296635, "shock_beta_ep": 0.813926, "oos_spearman_impact": 0.657493,
+    "oos_t": 24.550218, "oos_spearman_drift": -0.022269, "index_beta_down": 0.230227,
+    "index_beta_up": 0.341982, "pc1_share": 0.467828, "scenario_ep_10": 0.083170,
 }
-SYNTHETIC_COUNTS = {"n_events": 41, "n_up": 17, "oos_n": 38, "n_sig_partial": 8, "weeks": 469, "trading_days": 2348}
+SYNTHETIC_COUNTS = {"n_events": 48, "n_up": 24, "oos_n": 42, "n_sig_partial": 8, "weeks": 469, "trading_days": 2348}
 
 
 def test_end_to_end_on_a_synthetic_market(tmp_path):
@@ -139,10 +146,15 @@ def test_end_to_end_on_a_synthetic_market(tmp_path):
     # 2. every deliverable is written and the monitor's payload is valid
     for key in ("report", "dashboard", "workbook"):
         assert paths[key].stat().st_size > 10_000, key
-    assert len(list(paths["figures"].glob("*.png"))) == 10
+    assert len(list(paths["figures"].glob("*.png"))) == 11      # 12 minus the robustness figure, which is skipped
     payload = json.loads((cfg.results_dir / "dashboard.json").read_text(encoding="utf-8"))
     assert payload["meta"]["n_stocks"] == 16 and len(payload["units"]) == 21 and not payload["meta"]["live"]
     assert payload["shocks"]["latest"]["rows"] and payload["rolling"]["dates"][-1] <= cfg.end
+    counts = res.tables["shock_type_counts"]
+    assert counts[["demand", "supply"]].to_numpy().min() >= 8        # both kinds of shock occur
+    assert len(res.tables["shock_betas_by_type"]) == 21 and "q_diff" in res.tables["shock_betas_by_type"]
+    assert (res.tables["betas_full"]["total_q"] >= res.tables["betas_full"]["total_p"] - 1e-12).all()
+    assert "robustness_oil_series" not in res.tables                 # no network in this test
     assert pd.ExcelFile(paths["workbook"]).sheet_names[0] == "Betas (full sample)"
 
     # 3. and the numbers are exactly the ones this code produced when the test was written

@@ -48,7 +48,9 @@ calendar ({{ "{:,}".format(info.sample.trading_days) }} days), so a holiday is f
 <div class="method"><code>r = α + β<sub>mkt</sub>·MARKET + β<sub>oil</sub>·BRENT + ε</code> on weekly log returns, Newey-West standard errors.<br>
 <b>Partial</b> beta: the index enters as it is — oil exposure <i>beyond</i> what the index already carries.
 <b>Total</b> beta: the index is first stripped of its own oil component — what happens to the stock when Brent moves, through every channel.
-Identity: total = partial + β<sub>mkt</sub> × (the index's own oil beta).</div>
+Identity: total = partial + β<sub>mkt</sub> × (the index's own oil beta).<br>
+With {{ n_stocks }} stocks, some betas look significant at 5% by luck alone. Significance across stocks is therefore judged at a
+5% <i>false discovery rate</i> (Benjamini-Hochberg): of the betas called significant, at most one in twenty is expected to be a false alarm.</div>
 <img src="{{ fig['01_sector_betas'] }}" alt="Sector oil betas">
 <img src="{{ fig['02_market_rolling_beta'] }}" alt="Rolling oil beta of the index">
 <img src="{{ fig['03_then_vs_now'] }}" alt="Full sample versus last five years">
@@ -65,6 +67,19 @@ before). Shocks within {{ ev.min_gap }} trading days of an accepted one are skip
 Shock beta = slope of that CAR on the oil move across events. Down-shocks are preceded by a weak index
 ({{ pre_down }} over the five days before, t = {{ pre_down_t }}): many are demand scares, not supply news.</p>
 <img class="narrow" src="{{ fig['06_shock_vs_weekly_beta'] }}" alt="Shock beta versus weekly beta">
+
+<h3>What kind of shock was it?</h3>
+<p>Brent moves for two different reasons. A <b>supply-type</b> shock (an outage, an OPEC decision, a blockade) moves oil against
+the rest of the economy. A <b>demand-type</b> shock (a growth scare, a pandemic, a boom) moves oil together with everything else.
+Each shock is labelled by one question: over the same two days, did the S&amp;P 500 move with oil or against it?
+Of the {{ counts.loc['down', 'demand'] + counts.loc['down', 'supply'] }} large declines, {{ counts.loc['down', 'demand'] }} are demand-type;
+of the {{ counts.loc['up', 'demand'] + counts.loc['up', 'supply'] }} large rises, {{ counts.loc['up', 'demand'] }} are.</p>
+<img src="{{ fig['11_shock_types'] }}" alt="Shock betas in demand-type and supply-type shocks">
+<div class="scroll">{{ shock_type_table }}</div>
+<p class="note">Shock betas by type come from one regression per row across events, with White standard errors; q adjusts the
+p-values for testing eleven rows. "Net of S&amp;P 500" is the threshold-free version: the shock beta from a regression that also
+holds the two-day S&amp;P 500 move fixed. The label is ex post (it uses the same two days as the reaction), so this explains
+past shocks; it does not forecast the next one.</p>
 
 <div class="step" style="margin-top:50px">Step 4</div>
 <h2 style="margin-top:4px">Scenario table — and whether it deserves trust</h2>
@@ -90,6 +105,20 @@ the index's beta is {{ "%.2f"|format(vol.beta_calm) }} in calm and {{ "%.2f"|for
 <img class="narrow" src="{{ fig['09_pca'] }}" alt="PCA loadings">
 <p class="note">PC1 is the market. PC2 separates seafood from energy and has a {{ "%.2f"|format(pc2_oil) }} correlation with Brent:
 returns alone do not single out oil as the second driver of Oslo Børs.</p>
+
+{% if robustness_table %}
+<h2>Robustness: another oil series, a longer sample</h2>
+<p>The baseline uses the Brent front-month future from Yahoo, which starts in July 2007, so the sample opens straight into the
+financial crisis. Two alternatives run through exactly the same code: Brent <i>spot</i> from FRED (U.S. Energy Information
+Administration) over the same sample, and the same spot series with stock prices from 2005. Weekly returns of the two oil series
+have a correlation of {{ "%.2f"|format(agreement.weekly_return_correlation) }} over {{ "{:,}".format(agreement.weeks) }} weeks.</p>
+<div class="scroll">{{ robustness_table }}</div>
+<img src="{{ fig['12_oil_series_robustness'] }}" alt="Rolling index oil beta under two oil series and two samples">
+<p class="note">Two-year windows ending before September 2008 contain none of the autumn-2008 crash: their index oil beta averages
+{{ "%.2f"|format(agreement.pre_crisis.mean) }} ({{ agreement.pre_crisis.windows }} windows, range
+{{ "%.2f"|format(agreement.pre_crisis.min) }} to {{ "%.2f"|format(agreement.pre_crisis.max) }}). Windows ending 2009-2013 average
+{{ "%.2f"|format(agreement.crisis_era.mean) }}. None of the headline numbers use these alternatives; the table only shows how far they move.</p>
+{% endif %}
 
 <h2>All stocks</h2>
 <img class="tall" src="{{ fig['10_stock_betas'] }}" alt="Oil beta by stock">

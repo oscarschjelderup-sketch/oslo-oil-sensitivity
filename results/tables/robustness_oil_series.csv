@@ -1,0 +1,4 @@
+variant,first_week,weeks,index_beta,index_lo,index_hi,beta: Exploration & production,beta: Oil service & drilling,beta: Tankers & gas shipping,beta: Other shipping,beta: Seafood,beta: Banks & insurance,beta: Industrials & materials,"beta: Consumer, telecom & real estate",beta: Technology & renewables,beta: Investment companies,stocks,rank_corr_with_baseline,max_abs_beta_change
+Brent future (baseline),2007-08-10,994,0.28659,0.21389,0.35928,0.64142,0.56819,0.20479,0.19003,0.11426,0.19911,0.19396,0.11661,0.13242,0.34540,63,1.00000,0.00000
+"Brent spot, same sample",2007-08-10,997,0.25496,0.18053,0.32938,0.56865,0.51301,0.18607,0.17096,0.10298,0.18498,0.16382,0.10372,0.11744,0.29704,63,0.98728,0.11622
+"Brent spot, from 2005",2005-01-14,1131,0.25364,0.18405,0.32324,0.56777,0.51130,0.18098,0.17096,0.10698,0.17816,0.16129,0.09860,0.11124,0.30552,63,0.98594,0.11622

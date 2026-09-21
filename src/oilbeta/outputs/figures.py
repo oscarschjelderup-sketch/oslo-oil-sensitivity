@@ -18,6 +18,7 @@ import pandas as pd
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 from .. import MARKET, OIL
+from ..analysis import robustness as rb
 from ..pipeline import Results
 
 BLUE, ORANGE, GREEN = "#005A9E", "#D9622B", "#1F9E78"
@@ -98,7 +99,7 @@ def stock_betas(res: Results):
                     annotation_clip=False)
         y += 0.55
         for _, row in g.iterrows():
-            sig = row["total_lo"] > 0 or row["total_hi"] < 0
+            sig = row["total_q"] < 0.05
             colour = BLUE if sig else GREY
             ax.hlines(y, row["total_lo"], row["total_hi"], color=colour, lw=1.3, zorder=2)
             ax.scatter(row["beta_oil_total"], y, s=26, color=colour, zorder=3, edgecolor="white", linewidth=0.9)
@@ -112,7 +113,7 @@ def stock_betas(res: Results):
     ax.set_ylim(y - 0.6, -1.4)
     ax.grid(axis="y", visible=False)
     ax.set_xlabel("Total oil beta (weekly, full available history)")
-    ax.scatter([], [], s=26, color=BLUE, label="95% interval excludes zero")
+    ax.scatter([], [], s=26, color=BLUE, label="Significant at a 5% false discovery rate")
     ax.scatter([], [], s=26, color=GREY, label="Not distinguishable from zero")
     ax.legend(loc="lower right", fontsize=8.5, handletextpad=0.3)
     _title(ax, "Total oil beta by stock", "Dot = estimate, line = 95% Newey-West interval. Sectors ordered by average beta.")
@@ -286,7 +287,7 @@ def asymmetry(res: Results):
     ax.scatter(t["beta_down"], y, s=44, color=ORANGE, zorder=3, edgecolor="white", linewidth=1.2, label="Weeks when oil falls")
     labels = []
     for unit, row in t.iterrows():
-        star = " *" if row["p_diff"] < 0.05 else ""
+        star = " *" if row["q_diff"] < 0.05 else ""
         labels.append(("Oslo Børs index" if unit == MARKET else _short(unit)) + star)
     ax.set_yticks(y, labels)
     for tick in ax.get_yticklabels():
@@ -295,7 +296,7 @@ def asymmetry(res: Results):
     ax.set_xlabel("Total oil beta")
     ax.legend(loc="lower right", fontsize=8.5, handletextpad=0.3)
     _title(ax, "Oil hurts on the way down more than it helps on the way up",
-           "* difference significant at 5%. Falling oil often coincides with global risk-off:\n"
+           "* difference significant at a 5% false discovery rate. Falling oil often coincides with global risk-off:\n"
            "this is co-movement, not a pure oil effect.")
     return fig
 
@@ -319,6 +320,56 @@ def pca_loadings(res: Results):
     return fig
 
 
+def shock_types(res: Results):
+    t = res.tables["shock_betas_by_type"]
+    t = t[t["kind"] != "stock"].sort_values("beta_demand")
+    counts = res.tables["shock_type_counts"]
+    y = np.arange(len(t))
+    fig, ax = plt.subplots(figsize=(7.2, 4.3))
+    _zero(ax)
+    ax.hlines(y, t["beta_supply"], t["beta_demand"], color=GRID, lw=2.2, zorder=1)
+    ax.scatter(t["beta_demand"], y, s=44, color=ORANGE, zorder=3, edgecolor="white", linewidth=1.2,
+               label=f"Demand-type shocks: oil and global equities move together (n={int(counts['demand'].sum())})")
+    ax.scatter(t["beta_supply"], y, s=44, color=BLUE, zorder=3, edgecolor="white", linewidth=1.2,
+               label=f"Supply-type shocks: oil moves against global equities (n={int(counts['supply'].sum())})")
+    labels = [("Oslo Børs index" if u == MARKET else _short(u)) + (" *" if row["q_diff"] < 0.05 else "") for u, row in t.iterrows()]
+    ax.set_yticks(y, labels)
+    for tick, unit in zip(ax.get_yticklabels(), t.index):
+        tick.set_color(INK)
+        tick.set_fontweight("bold" if unit == MARKET else "normal")
+    ax.grid(axis="y", visible=False)
+    ax.set_xlabel("Shock beta: two-day reaction per 1% move in Brent")
+    ax.legend(loc="lower right", fontsize=8, handletextpad=0.3)
+    _title(ax, "Energy reacts to every oil shock; the rest of the market mostly to demand shocks",
+           "Two-day reaction to large Brent moves, split by whether the S&P 500 moved with oil or against it.\n"
+           "* difference significant at a 5% false discovery rate.")
+    return fig
+
+
+def oil_series_robustness(res: Results):
+    r = res.tables["robustness_rolling"]
+    base = r[r["variant"] == rb.BASELINE].set_index("date")
+    long = r[r["variant"] == rb.SPOT_LONG].set_index("date")
+    fig, ax = plt.subplots(figsize=(7.2, 3.7))
+    _zero(ax, vertical=False)
+    ax.fill_between(long.index, long["total_lo"], long["total_hi"], color=ORANGE, alpha=0.13, lw=0)
+    ax.plot(long.index, long["beta_oil_total"], color=ORANGE, lw=1.7, label="Brent spot (FRED), sample from 2005")
+    ax.plot(base.index, base["beta_oil_total"], color=BLUE, lw=1.7, label="Brent future (Yahoo), sample from 2007: baseline")
+    crisis = pd.Timestamp(rb.CRISIS_START)
+    top = long["total_hi"].max()
+    ax.axvline(crisis, color=GREY, lw=0.7, zorder=1)
+    ax.text(crisis, top * 1.03, " September 2008 enters the window", fontsize=7.5, color=MUTED, va="bottom", ha="left")
+    ax.set_ylim(top=top * 1.16)
+    ax.xaxis.set_major_locator(mdates.YearLocator(2))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    ax.grid(axis="x", visible=False)
+    ax.legend(loc="upper right", fontsize=8.5, handlelength=1.6)
+    window = res.cfg.betas.rolling_window
+    _title(ax, "Same picture from another vendor, and the high betas begin with the 2008 crash",
+           f"Oil beta of the index, rolling {window}-week windows. Band: 95% interval of the long spot sample.")
+    return fig
+
+
 FIGURES = {
     "01_sector_betas": sector_betas,
     "02_market_rolling_beta": market_rolling,
@@ -330,13 +381,18 @@ FIGURES = {
     "08_asymmetry": asymmetry,
     "09_pca": pca_loadings,
     "10_stock_betas": stock_betas,
+    "11_shock_types": shock_types,
+    "12_oil_series_robustness": oil_series_robustness,
 }
+OPTIONAL = {"12_oil_series_robustness": "robustness_rolling"}      # figure -> table it needs
 
 
 def save_all(res: Results, out_dir: Path) -> dict[str, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = {}
     for name, make in FIGURES.items():
+        if name in OPTIONAL and OPTIONAL[name] not in res.tables:
+            continue
         fig = make(res)
         paths[name] = out_dir / f"{name}.png"
         fig.savefig(paths[name])

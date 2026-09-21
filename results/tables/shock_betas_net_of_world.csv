@@ -1,0 +1,73 @@
+unit,name,kind,sector,n_events,shock_beta,beta_oil_net,net_lo,net_hi,net_p,beta_world,world_p,r2
+MARKET,Oslo Børs Benchmark Index,market,,69,0.25051,0.13452,0.02835,0.24070,0.01382,0.71858,0.00010,0.55566
+Exploration & production,Exploration & production,sector,Exploration & production,69,0.55070,0.59294,0.47677,0.70912,0.00000,-0.26171,0.04914,0.82017
+Oil service & drilling,Oil service & drilling,sector,Oil service & drilling,69,0.52364,0.47663,0.36926,0.58399,0.00000,0.29125,0.01185,0.72051
+Tankers & gas shipping,Tankers & gas shipping,sector,Tankers & gas shipping,69,0.14764,0.09418,-0.02995,0.21830,0.13458,0.33124,0.00175,0.24189
+Other shipping,Other shipping,sector,Other shipping,62,0.26016,0.23219,0.09683,0.36755,0.00110,0.24350,0.19063,0.43994
+Seafood,Seafood,sector,Seafood,69,0.09597,0.09709,-0.04217,0.23635,0.16860,-0.00695,0.97041,0.07614
+Banks & insurance,Banks & insurance,sector,Banks & insurance,69,0.18169,0.15277,0.09376,0.21177,0.00000,0.17917,0.08915,0.46070
+Industrials & materials,Industrials & materials,sector,Industrials & materials,69,0.12830,0.09931,0.02564,0.17299,0.00901,0.17956,0.07946,0.39834
+"Consumer, telecom & real estate","Consumer, telecom & real estate",sector,"Consumer, telecom & real estate",69,0.10232,0.07151,-0.00796,0.15098,0.07699,0.19092,0.02850,0.24433
+Technology & renewables,Technology & renewables,sector,Technology & renewables,69,0.11966,0.10740,0.03531,0.17949,0.00410,0.07593,0.55006,0.16322
+Investment companies,Investment companies,sector,Investment companies,69,0.30087,0.30458,0.24555,0.36360,0.00000,-0.02297,0.72228,0.66144
+EQNR.OL,Equinor,stock,Exploration & production,69,0.42405,0.47648,0.39430,0.55865,0.00000,-0.32480,0.03401,0.70661
+AKRBP.OL,Aker BP,stock,Exploration & production,63,0.61721,0.62411,0.47157,0.77665,0.00000,-0.06005,0.88074,0.62913
+DNO.OL,DNO,stock,Exploration & production,69,0.47760,0.50003,0.36041,0.63966,0.00000,-0.13900,0.62013,0.41879
+OKEA.OL,OKEA,stock,Exploration & production,25,0.44380,0.51380,0.36945,0.65816,0.00000,-0.58022,0.16326,0.73503
+PEN.OL,Panoro Energy,stock,Exploration & production,62,0.77239,0.74250,0.40206,1.08294,0.00005,0.26018,0.36955,0.59228
+BWE.OL,BW Energy,stock,Exploration & production,21,0.48231,0.46997,0.31937,0.62056,0.00000,0.17320,0.53100,0.77886
+SUBC.OL,Subsea 7,stock,Oil service & drilling,69,0.47107,0.41853,0.25483,0.58223,0.00000,0.32550,0.05440,0.48352
+TGS.OL,TGS,stock,Oil service & drilling,69,0.49674,0.46063,0.33924,0.58201,0.00000,0.22371,0.18058,0.55974
+AKSO.OL,Aker Solutions,stock,Oil service & drilling,69,0.64833,0.60140,0.42720,0.77559,0.00000,0.29073,0.27332,0.63250
+ODL.OL,Odfjell Drilling,stock,Oil service & drilling,49,0.58161,0.52949,0.23049,0.82850,0.00086,0.43434,0.34510,0.56069
+BORR.OL,Borr Drilling,stock,Oil service & drilling,24,0.68639,0.59670,0.13238,1.06103,0.01425,0.59968,0.52758,0.52306
+SOFF.OL,Solstad Offshore,stock,Oil service & drilling,69,0.38476,0.31272,0.16821,0.45723,0.00005,0.44632,0.00971,0.23106
+BWO.OL,BW Offshore,stock,Oil service & drilling,69,0.52338,0.49623,0.28137,0.71110,0.00002,0.16814,0.47957,0.42060
+ARCH.OL,Archer,stock,Oil service & drilling,58,0.46544,0.45725,0.23149,0.68300,0.00016,0.06744,0.84145,0.36973
+FRO.OL,Frontline,stock,Tankers & gas shipping,69,-0.06290,-0.14417,-0.52539,0.23704,0.45288,0.50350,0.00896,0.05679
+HAFNI.OL,Hafnia,stock,Tankers & gas shipping,21,0.38838,0.38125,0.20148,0.56102,0.00031,0.10001,0.79663,0.44176
+OET.OL,Okeanis Eco Tankers,stock,Tankers & gas shipping,28,-0.06813,-0.09625,-0.34119,0.14869,0.42596,0.24214,0.66989,0.03363
+BWLPG.OL,BW LPG,stock,Tankers & gas shipping,48,0.28736,0.20114,0.06149,0.34079,0.00574,0.70708,0.02831,0.32131
+ODF.OL,Odfjell,stock,Tankers & gas shipping,69,0.25215,0.23204,0.02217,0.44191,0.03076,0.12456,0.45326,0.27215
+SNI.OL,Stolt-Nielsen,stock,Tankers & gas shipping,69,0.21177,0.14235,0.04063,0.24407,0.00681,0.43005,0.01414,0.32078
+WAWI.OL,Wallenius Wilhelmsen,stock,Other shipping,62,0.15346,0.14697,0.03495,0.25898,0.01101,0.05649,0.77260,0.15317
+HAUTO.OL,Höegh Autoliners,stock,Other shipping,16,0.32592,0.32374,0.09262,0.55485,0.00974,0.42800,0.05180,0.47226
+MPCC.OL,MPC Container Ships,stock,Other shipping,33,0.47223,0.32510,0.12436,0.52583,0.00245,1.20164,0.02048,0.57397
+WWI.OL,Wilh. Wilhelmsen Holding,stock,Other shipping,69,0.20195,0.21760,-0.00420,0.43940,0.05437,-0.09695,0.54165,0.20943
+MOWI.OL,Mowi,stock,Seafood,69,0.11200,0.15582,-0.03252,0.34416,0.10332,-0.27149,0.16758,0.10380
+SALM.OL,SalMar,stock,Seafood,69,0.04643,0.02800,-0.08711,0.14311,0.62883,0.11416,0.62757,0.01806
+LSG.OL,Lerøy Seafood,stock,Seafood,69,0.07400,0.08032,-0.06077,0.22142,0.25982,-0.03913,0.85641,0.03595
+BAKKA.OL,Bakkafrost,stock,Seafood,62,0.04032,0.07360,-0.02608,0.17329,0.14488,-0.28968,0.25476,0.04507
+AUSS.OL,Austevoll Seafood,stock,Seafood,69,0.16143,0.10412,-0.05794,0.26619,0.20407,0.35504,0.07726,0.22920
+GSF.OL,Grieg Seafood,stock,Seafood,69,0.08432,0.09282,-0.08762,0.27326,0.30816,-0.05263,0.89369,0.02435
+DNB.OL,DNB,stock,Banks & insurance,69,0.25628,0.25805,0.15000,0.36611,0.00001,-0.01100,0.96829,0.30019
+STB.OL,Storebrand,stock,Banks & insurance,69,0.22143,0.16555,0.06279,0.26831,0.00201,0.34619,0.06145,0.32805
+GJF.OL,Gjensidige,stock,Banks & insurance,58,0.07045,0.04238,-0.02697,0.11174,0.22590,0.23096,0.02643,0.18500
+MING.OL,SpareBank 1 SMN,stock,Banks & insurance,69,0.20874,0.21221,0.12525,0.29918,0.00001,-0.02152,0.88475,0.32608
+NONG.OL,SpareBank 1 Nord-Norge,stock,Banks & insurance,69,0.16715,0.12946,0.04815,0.21078,0.00225,0.23345,0.22966,0.27683
+SB1NO.OL,SpareBank 1 Sør-Norge,stock,Banks & insurance,69,0.20347,0.16731,0.08556,0.24906,0.00012,0.22400,0.05708,0.33219
+PROT.OL,Protector Forsikring,stock,Banks & insurance,69,0.10550,0.04629,-0.06015,0.15273,0.38839,0.36681,0.14963,0.11698
+NHY.OL,Norsk Hydro,stock,Industrials & materials,69,0.15687,0.12342,-0.03124,0.27807,0.11588,0.20724,0.19647,0.21192
+YAR.OL,Yara,stock,Industrials & materials,69,0.16884,0.11303,-0.04999,0.27605,0.17093,0.34576,0.03507,0.26562
+ELK.OL,Elkem,stock,Industrials & materials,32,0.17677,0.11229,-0.14314,0.36773,0.37599,0.52544,0.38749,0.13070
+BRG.OL,Borregaard,stock,Industrials & materials,52,0.01971,-0.02675,-0.13844,0.08494,0.63249,0.39872,0.04465,0.07448
+KOG.OL,Kongsberg Gruppen,stock,Industrials & materials,69,0.04306,0.04734,-0.06683,0.16152,0.41069,-0.02654,0.90867,0.01093
+TOM.OL,Tomra,stock,Industrials & materials,69,0.08850,0.10394,-0.03884,0.24672,0.15084,-0.09565,0.61619,0.04048
+VEI.OL,Veidekke,stock,Industrials & materials,69,0.09747,0.07242,-0.00477,0.14961,0.06546,0.15519,0.33548,0.10708
+AFG.OL,AF Gruppen,stock,Industrials & materials,69,0.12980,0.07715,-0.02559,0.17988,0.13859,0.32621,0.09465,0.22627
+HEX.OL,Hexagon Composites,stock,Industrials & materials,69,0.18647,0.13190,-0.00239,0.26618,0.05409,0.33808,0.06455,0.17019
+ORK.OL,Orkla,stock,"Consumer, telecom & real estate",69,0.07336,0.02287,-0.07069,0.11643,0.62718,0.31283,0.04959,0.16040
+TEL.OL,Telenor,stock,"Consumer, telecom & real estate",69,0.06627,0.04009,-0.03729,0.11747,0.30467,0.16214,0.07474,0.10385
+EPR.OL,Europris,stock,"Consumer, telecom & real estate",36,0.02551,-0.02806,-0.10987,0.05376,0.49026,0.44464,0.08676,0.12299
+KID.OL,Kid,stock,"Consumer, telecom & real estate",34,0.10293,0.04865,-0.08437,0.18166,0.46136,0.45722,0.20011,0.12700
+SATS.OL,SATS,stock,"Consumer, telecom & real estate",21,0.00490,-0.01845,-0.29084,0.25394,0.88841,0.32766,0.61889,0.01801
+NAS.OL,Norwegian Air Shuttle,stock,"Consumer, telecom & real estate",69,0.17869,0.16861,-0.13701,0.47422,0.27468,0.06244,0.76348,0.07463
+ENTRA.OL,Entra,stock,"Consumer, telecom & real estate",38,0.06307,0.00738,-0.12881,0.14356,0.91308,0.45987,0.06567,0.14230
+NOD.OL,Nordic Semiconductor,stock,Technology & renewables,69,0.05670,0.02624,-0.13209,0.18458,0.74174,0.18865,0.48270,0.01430
+ATEA.OL,Atea,stock,Technology & renewables,69,0.14558,0.09563,0.01639,0.17487,0.01877,0.30944,0.02238,0.24909
+BOUV.OL,Bouvet,stock,Technology & renewables,69,0.10307,0.13049,0.05915,0.20182,0.00052,-0.16987,0.04339,0.19401
+AUTO.OL,AutoStore,stock,Technology & renewables,16,-0.02742,-0.04768,-0.36704,0.27167,0.75215,3.96292,0.00027,0.63673
+NEL.OL,Nel,stock,Technology & renewables,38,0.09288,0.13439,-0.07568,0.34445,0.20252,-0.34276,0.50776,0.04344
+SCATC.OL,Scatec,stock,Technology & renewables,38,0.09971,0.16090,0.00689,0.31491,0.04109,-0.50532,0.11100,0.11302
+AKER.OL,Aker,stock,Investment companies,69,0.42221,0.38840,0.32101,0.45578,0.00000,0.20948,0.03399,0.74749
+BONHR.OL,Bonheur,stock,Investment companies,69,0.18326,0.22338,0.14469,0.30207,0.00000,-0.24854,0.03907,0.26283

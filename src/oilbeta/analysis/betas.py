@@ -21,7 +21,7 @@ import pandas as pd
 
 from .. import MARKET, OIL
 from ..config import Config
-from ..stats import ols, orthogonalise
+from ..stats import benjamini_hochberg, ols, orthogonalise
 
 
 def oil_betas(r: np.ndarray, m: np.ndarray, o: np.ndarray, hac_lags="auto") -> dict:
@@ -92,7 +92,15 @@ def beta_table(frame: pd.DataFrame, meta: pd.DataFrame, factors: pd.DataFrame,
         est = market_oil_beta(m, o, hac_lags) if unit == MARKET else oil_betas(r, m, o, hac_lags)
         first = frame[unit].first_valid_index()
         rows.append({"unit": unit, **meta.loc[unit].to_dict(), "from": first.date(), **est})
-    return pd.DataFrame(rows).set_index("unit")
+    return add_q_values(pd.DataFrame(rows).set_index("unit"), {"partial_p": "partial_q", "total_p": "total_q"})
+
+
+def add_q_values(table: pd.DataFrame, columns: dict[str, str]) -> pd.DataFrame:
+    """Benjamini-Hochberg q-values next to each p-value. The family of tests is the `kind`:
+    the 63 stocks are corrected together, the 10 sectors together."""
+    for p_col, q_col in columns.items():
+        table[q_col] = table.groupby("kind")[p_col].transform(lambda p: benjamini_hochberg(p.to_numpy()))
+    return table
 
 
 def rolling_betas(frame: pd.DataFrame, factors: pd.DataFrame, window: int, min_obs: int,

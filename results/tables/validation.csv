@@ -3,66 +3,67 @@
 1,OIL,OIL,factor,2007-07-31,2026-09-11,4609,994,0,0.00520,0.27980,0,0,False,ok
 2,USDNOK,USDNOK,factor,2007-07-31,2026-09-11,4571,990,38,0.00090,0.41890,0,0,False,ok
 3,VIX,VIX,factor,2007-07-31,2026-09-11,4603,994,6,0.00410,0.76820,3,0,False,extreme print
-4,EQNR.OL,Equinor,Exploration & production,2007-07-31,2026-09-11,4609,994,0,0.01320,0.19500,0,0,False,ok
-5,AKRBP.OL,Aker BP,Exploration & production,2009-01-09,2026-09-11,4259,919,1,0.02700,0.42930,0,0,False,ok
-6,VAR.OL,Vår Energi,Exploration & production,2022-02-16,2026-09-11,1115,238,1,0.00360,0.12990,0,0,False,ok
-7,DNO.OL,DNO,Exploration & production,2007-07-31,2026-09-11,4609,994,0,0.01320,0.61320,1,0,False,extreme print
-8,OKEA.OL,OKEA,Exploration & production,2019-06-18,2026-09-11,1764,377,1,0.03230,0.24120,0,0,False,ok
-9,PEN.OL,Panoro Energy,Exploration & production,2010-06-08,2026-09-11,3936,848,1,0.05260,0.49500,0,0,False,ok
-10,BWE.OL,BW Energy,Exploration & production,2020-02-19,2026-09-11,1598,342,1,0.02500,0.42130,0,0,False,ok
-11,SUBC.OL,Subsea 7,Oil service & drilling,2007-07-31,2026-09-11,4609,994,0,0.01690,0.24650,0,0,False,ok
-12,TGS.OL,TGS,Oil service & drilling,2007-07-31,2026-09-11,4609,994,0,0.01320,0.31640,0,0,False,ok
-13,AKSO.OL,Aker Solutions,Oil service & drilling,2007-07-31,2026-09-11,4608,993,1,0.01240,0.38490,0,1,False,ok
-14,ODL.OL,Odfjell Drilling,Oil service & drilling,2013-09-27,2026-09-11,3152,676,1,0.04570,0.34710,0,0,False,ok
-15,BORR.OL,Borr Drilling,Oil service & drilling,2017-08-30,2026-09-11,1962,420,238,0.03060,0.76940,2,2,False,extreme print
-16,SOFF.OL,Solstad Offshore,Oil service & drilling,2007-07-31,2026-09-11,4608,993,1,0.12700,0.44090,0,1,False,ok
-17,DOFG.OL,DOF Group,Oil service & drilling,2023-06-22,2026-09-11,788,168,1,0.01900,0.08500,0,0,False,ok
-18,BWO.OL,BW Offshore,Oil service & drilling,2007-07-31,2026-09-11,4609,994,0,0.06400,0.37070,0,0,False,ok
-19,ARCH.OL,Archer,Oil service & drilling,2010-11-26,2026-09-11,3817,824,1,0.03900,0.47960,0,0,False,ok
-20,FRO.OL,Frontline,Tankers & gas shipping,2007-07-31,2026-09-11,4609,994,0,0.02260,0.63680,1,0,False,extreme print
-21,HAFNI.OL,Hafnia,Tankers & gas shipping,2019-11-08,2026-09-11,1663,357,1,0.03130,0.14660,0,0,False,ok
-22,OET.OL,Okeanis Eco Tankers,Tankers & gas shipping,2018-07-05,2026-09-11,1992,427,3,0.10990,0.18640,0,0,False,ok
-23,BWLPG.OL,BW LPG,Tankers & gas shipping,2013-11-21,2026-09-11,3115,668,1,0.01280,0.15240,0,0,False,ok
-24,ODF.OL,Odfjell,Tankers & gas shipping,2007-07-31,2026-09-11,4609,994,0,0.13450,0.23250,0,0,False,ok
-25,SNI.OL,Stolt-Nielsen,Tankers & gas shipping,2007-07-31,2026-09-11,4609,994,0,0.07980,0.15020,0,0,False,ok
-26,WAWI.OL,Wallenius Wilhelmsen,Other shipping,2010-06-24,2026-09-11,3924,846,1,0.05530,0.25420,0,0,False,ok
-27,HAUTO.OL,Höegh Autoliners,Other shipping,2021-11-29,2026-09-11,1169,249,1,0.01030,0.25000,0,0,False,ok
-28,MPCC.OL,MPC Container Ships,Other shipping,2017-05-31,2026-09-11,2262,484,1,0.10340,0.54230,1,0,False,extreme print
-29,WWI.OL,Wilh. Wilhelmsen Holding,Other shipping,2007-07-31,2026-09-11,4609,994,0,0.11430,0.22710,0,0,False,ok
-30,MOWI.OL,Mowi,Seafood,2007-07-31,2026-09-11,4609,994,0,0.02080,0.23850,0,0,False,ok
-31,SALM.OL,SalMar,Seafood,2007-07-31,2026-09-11,4609,994,0,0.07980,0.36110,0,0,False,ok
-32,LSG.OL,Lerøy Seafood,Seafood,2007-07-31,2026-09-11,4609,994,0,0.05230,0.32190,0,0,False,ok
-33,BAKKA.OL,Bakkafrost,Seafood,2010-03-26,2026-09-11,3980,859,1,0.05500,0.17520,0,0,False,ok
-34,AUSS.OL,Austevoll Seafood,Seafood,2007-07-31,2026-09-11,4609,994,0,0.06050,0.25550,0,0,False,ok
-35,GSF.OL,Grieg Seafood,Seafood,2007-07-31,2026-09-11,4609,994,0,0.07920,0.59550,1,0,False,extreme print
-36,DNB.OL,DNB,Banks & insurance,2007-07-31,2026-09-11,4609,994,0,0.02020,0.34160,0,0,False,ok
-37,STB.OL,Storebrand,Banks & insurance,2007-07-31,2026-09-11,4609,994,0,0.01410,0.24650,0,0,False,ok
-38,GJF.OL,Gjensidige,Banks & insurance,2010-12-10,2026-09-11,3807,822,1,0.03020,0.11580,0,0,False,ok
-39,MING.OL,SpareBank 1 SMN,Banks & insurance,2007-07-31,2026-09-11,4607,994,2,0.08550,0.14950,0,0,False,ok
-40,NONG.OL,SpareBank 1 Nord-Norge,Banks & insurance,2007-07-31,2026-09-11,4607,994,2,0.09490,0.22310,0,0,False,ok
-41,SB1NO.OL,SpareBank 1 Sør-Norge,Banks & insurance,2007-07-31,2026-09-11,4609,994,0,0.09030,0.19260,0,0,False,ok
-42,PROT.OL,Protector Forsikring,Banks & insurance,2007-07-31,2026-09-11,4609,994,0,0.18510,0.25340,0,0,False,ok
-43,NHY.OL,Norsk Hydro,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.01300,0.18210,0,0,False,ok
-44,YAR.OL,Yara,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.01040,0.29050,0,0,False,ok
-45,ELK.OL,Elkem,Industrials & materials,2018-03-22,2026-09-11,2060,442,1,0.01070,0.18730,0,0,False,ok
-46,BRG.OL,Borregaard,Industrials & materials,2012-10-19,2026-09-11,3364,725,1,0.06570,0.11950,0,0,False,ok
-47,KOG.OL,Kongsberg Gruppen,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.09110,0.20900,0,0,False,ok
-48,TOM.OL,Tomra,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.05730,0.27720,0,0,False,ok
-49,VEI.OL,Veidekke,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.09350,0.16620,0,0,False,ok
-50,AFG.OL,AF Gruppen,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.17510,0.11140,0,0,False,ok
-51,HEX.OL,Hexagon Composites,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.07010,0.31280,0,0,False,ok
-52,ORK.OL,Orkla,"Consumer, telecom & real estate",2007-07-31,2026-09-11,4609,994,0,0.02520,0.18980,0,0,False,ok
-53,TEL.OL,Telenor,"Consumer, telecom & real estate",2007-07-31,2026-09-11,4609,994,0,0.01870,0.30040,0,0,False,ok
-54,EPR.OL,Europris,"Consumer, telecom & real estate",2015-06-19,2026-09-11,2738,586,1,0.05440,0.15770,0,0,False,ok
-55,KID.OL,Kid,"Consumer, telecom & real estate",2015-11-02,2026-09-11,2644,566,1,0.09190,0.19930,0,0,False,ok
-56,SATS.OL,SATS,"Consumer, telecom & real estate",2019-12-13,2026-09-11,1639,352,1,0.03660,0.29280,0,0,False,ok
-57,NAS.OL,Norwegian Air Shuttle,"Consumer, telecom & real estate",2007-07-31,2026-09-11,4609,994,0,0.02710,0.67710,3,0,False,extreme print
-58,ENTRA.OL,Entra,"Consumer, telecom & real estate",2014-10-17,2026-09-11,2899,621,1,0.07280,0.17980,0,0,False,ok
-59,NOD.OL,Nordic Semiconductor,Technology & renewables,2007-07-31,2026-09-11,4609,994,0,0.09310,0.31010,0,0,False,ok
-60,ATEA.OL,Atea,Technology & renewables,2007-07-31,2026-09-11,4609,994,0,0.08680,0.30380,0,0,False,ok
-61,BOUV.OL,Bouvet,Technology & renewables,2007-07-31,2026-09-11,4609,994,0,0.34540,0.15220,0,0,False,stale prices
-62,AUTO.OL,AutoStore,Technology & renewables,2021-10-21,2026-09-11,1195,255,1,0.01090,0.34030,0,0,False,ok
-63,NEL.OL,Nel,Technology & renewables,2014-10-01,2026-09-11,2911,623,1,0.02710,0.39590,0,0,True,ok
-64,SCATC.OL,Scatec,Technology & renewables,2014-10-02,2026-09-11,2910,623,1,0.03950,0.19380,0,0,False,ok
-65,AKER.OL,Aker,Investment companies,2007-07-31,2026-09-11,4609,994,0,0.05680,0.23160,0,0,False,ok
-66,BONHR.OL,Bonheur,Investment companies,2007-07-31,2026-09-11,4609,994,0,0.10910,0.16580,0,0,False,ok
+4,WORLD,WORLD,factor,2007-07-31,2026-09-11,4603,994,6,0.00040,0.12770,0,0,False,ok
+5,EQNR.OL,Equinor,Exploration & production,2007-07-31,2026-09-11,4609,994,0,0.01320,0.19500,0,0,False,ok
+6,AKRBP.OL,Aker BP,Exploration & production,2009-01-09,2026-09-11,4259,919,1,0.02700,0.42930,0,0,False,ok
+7,VAR.OL,Vår Energi,Exploration & production,2022-02-16,2026-09-11,1115,238,1,0.00360,0.12990,0,0,False,ok
+8,DNO.OL,DNO,Exploration & production,2007-07-31,2026-09-11,4609,994,0,0.01320,0.61320,1,0,False,extreme print
+9,OKEA.OL,OKEA,Exploration & production,2019-06-18,2026-09-11,1764,377,1,0.03230,0.24120,0,0,False,ok
+10,PEN.OL,Panoro Energy,Exploration & production,2010-06-08,2026-09-11,3936,848,1,0.05260,0.49500,0,0,False,ok
+11,BWE.OL,BW Energy,Exploration & production,2020-02-19,2026-09-11,1598,342,1,0.02500,0.42130,0,0,False,ok
+12,SUBC.OL,Subsea 7,Oil service & drilling,2007-07-31,2026-09-11,4609,994,0,0.01690,0.24650,0,0,False,ok
+13,TGS.OL,TGS,Oil service & drilling,2007-07-31,2026-09-11,4609,994,0,0.01320,0.31640,0,0,False,ok
+14,AKSO.OL,Aker Solutions,Oil service & drilling,2007-07-31,2026-09-11,4608,993,1,0.01240,0.38490,0,1,False,ok
+15,ODL.OL,Odfjell Drilling,Oil service & drilling,2013-09-27,2026-09-11,3152,676,1,0.04570,0.34710,0,0,False,ok
+16,BORR.OL,Borr Drilling,Oil service & drilling,2017-08-30,2026-09-11,1962,420,238,0.03060,0.76940,2,2,False,extreme print
+17,SOFF.OL,Solstad Offshore,Oil service & drilling,2007-07-31,2026-09-11,4608,993,1,0.12700,0.44090,0,1,False,ok
+18,DOFG.OL,DOF Group,Oil service & drilling,2023-06-22,2026-09-11,788,168,1,0.01900,0.08500,0,0,False,ok
+19,BWO.OL,BW Offshore,Oil service & drilling,2007-07-31,2026-09-11,4609,994,0,0.06400,0.37070,0,0,False,ok
+20,ARCH.OL,Archer,Oil service & drilling,2010-11-26,2026-09-11,3817,824,1,0.03900,0.47960,0,0,False,ok
+21,FRO.OL,Frontline,Tankers & gas shipping,2007-07-31,2026-09-11,4609,994,0,0.02260,0.63680,1,0,False,extreme print
+22,HAFNI.OL,Hafnia,Tankers & gas shipping,2019-11-08,2026-09-11,1663,357,1,0.03130,0.14660,0,0,False,ok
+23,OET.OL,Okeanis Eco Tankers,Tankers & gas shipping,2018-07-05,2026-09-11,1992,427,3,0.10990,0.18640,0,0,False,ok
+24,BWLPG.OL,BW LPG,Tankers & gas shipping,2013-11-21,2026-09-11,3115,668,1,0.01280,0.15240,0,0,False,ok
+25,ODF.OL,Odfjell,Tankers & gas shipping,2007-07-31,2026-09-11,4609,994,0,0.13450,0.23250,0,0,False,ok
+26,SNI.OL,Stolt-Nielsen,Tankers & gas shipping,2007-07-31,2026-09-11,4609,994,0,0.07980,0.15020,0,0,False,ok
+27,WAWI.OL,Wallenius Wilhelmsen,Other shipping,2010-06-24,2026-09-11,3924,846,1,0.05530,0.25420,0,0,False,ok
+28,HAUTO.OL,Höegh Autoliners,Other shipping,2021-11-29,2026-09-11,1169,249,1,0.01030,0.25000,0,0,False,ok
+29,MPCC.OL,MPC Container Ships,Other shipping,2017-05-31,2026-09-11,2262,484,1,0.10340,0.54230,1,0,False,extreme print
+30,WWI.OL,Wilh. Wilhelmsen Holding,Other shipping,2007-07-31,2026-09-11,4609,994,0,0.11430,0.22710,0,0,False,ok
+31,MOWI.OL,Mowi,Seafood,2007-07-31,2026-09-11,4609,994,0,0.02080,0.23850,0,0,False,ok
+32,SALM.OL,SalMar,Seafood,2007-07-31,2026-09-11,4609,994,0,0.07980,0.36110,0,0,False,ok
+33,LSG.OL,Lerøy Seafood,Seafood,2007-07-31,2026-09-11,4609,994,0,0.05230,0.32190,0,0,False,ok
+34,BAKKA.OL,Bakkafrost,Seafood,2010-03-26,2026-09-11,3980,859,1,0.05500,0.17520,0,0,False,ok
+35,AUSS.OL,Austevoll Seafood,Seafood,2007-07-31,2026-09-11,4609,994,0,0.06050,0.25550,0,0,False,ok
+36,GSF.OL,Grieg Seafood,Seafood,2007-07-31,2026-09-11,4609,994,0,0.07920,0.59550,1,0,False,extreme print
+37,DNB.OL,DNB,Banks & insurance,2007-07-31,2026-09-11,4609,994,0,0.02020,0.34160,0,0,False,ok
+38,STB.OL,Storebrand,Banks & insurance,2007-07-31,2026-09-11,4609,994,0,0.01410,0.24650,0,0,False,ok
+39,GJF.OL,Gjensidige,Banks & insurance,2010-12-10,2026-09-11,3807,822,1,0.03020,0.11580,0,0,False,ok
+40,MING.OL,SpareBank 1 SMN,Banks & insurance,2007-07-31,2026-09-11,4607,994,2,0.08550,0.14950,0,0,False,ok
+41,NONG.OL,SpareBank 1 Nord-Norge,Banks & insurance,2007-07-31,2026-09-11,4607,994,2,0.09490,0.22310,0,0,False,ok
+42,SB1NO.OL,SpareBank 1 Sør-Norge,Banks & insurance,2007-07-31,2026-09-11,4609,994,0,0.09030,0.19260,0,0,False,ok
+43,PROT.OL,Protector Forsikring,Banks & insurance,2007-07-31,2026-09-11,4609,994,0,0.18510,0.25340,0,0,False,ok
+44,NHY.OL,Norsk Hydro,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.01300,0.18210,0,0,False,ok
+45,YAR.OL,Yara,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.01040,0.29050,0,0,False,ok
+46,ELK.OL,Elkem,Industrials & materials,2018-03-22,2026-09-11,2060,442,1,0.01070,0.18730,0,0,False,ok
+47,BRG.OL,Borregaard,Industrials & materials,2012-10-19,2026-09-11,3364,725,1,0.06570,0.11950,0,0,False,ok
+48,KOG.OL,Kongsberg Gruppen,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.09110,0.20900,0,0,False,ok
+49,TOM.OL,Tomra,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.05730,0.27720,0,0,False,ok
+50,VEI.OL,Veidekke,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.09350,0.16620,0,0,False,ok
+51,AFG.OL,AF Gruppen,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.17510,0.11140,0,0,False,ok
+52,HEX.OL,Hexagon Composites,Industrials & materials,2007-07-31,2026-09-11,4609,994,0,0.07010,0.31280,0,0,False,ok
+53,ORK.OL,Orkla,"Consumer, telecom & real estate",2007-07-31,2026-09-11,4609,994,0,0.02520,0.18980,0,0,False,ok
+54,TEL.OL,Telenor,"Consumer, telecom & real estate",2007-07-31,2026-09-11,4609,994,0,0.01870,0.30040,0,0,False,ok
+55,EPR.OL,Europris,"Consumer, telecom & real estate",2015-06-19,2026-09-11,2738,586,1,0.05440,0.15770,0,0,False,ok
+56,KID.OL,Kid,"Consumer, telecom & real estate",2015-11-02,2026-09-11,2644,566,1,0.09190,0.19930,0,0,False,ok
+57,SATS.OL,SATS,"Consumer, telecom & real estate",2019-12-13,2026-09-11,1639,352,1,0.03660,0.29280,0,0,False,ok
+58,NAS.OL,Norwegian Air Shuttle,"Consumer, telecom & real estate",2007-07-31,2026-09-11,4609,994,0,0.02710,0.67710,3,0,False,extreme print
+59,ENTRA.OL,Entra,"Consumer, telecom & real estate",2014-10-17,2026-09-11,2899,621,1,0.07280,0.17980,0,0,False,ok
+60,NOD.OL,Nordic Semiconductor,Technology & renewables,2007-07-31,2026-09-11,4609,994,0,0.09310,0.31010,0,0,False,ok
+61,ATEA.OL,Atea,Technology & renewables,2007-07-31,2026-09-11,4609,994,0,0.08680,0.30380,0,0,False,ok
+62,BOUV.OL,Bouvet,Technology & renewables,2007-07-31,2026-09-11,4609,994,0,0.34540,0.15220,0,0,False,stale prices
+63,AUTO.OL,AutoStore,Technology & renewables,2021-10-21,2026-09-11,1195,255,1,0.01090,0.34030,0,0,False,ok
+64,NEL.OL,Nel,Technology & renewables,2014-10-01,2026-09-11,2911,623,1,0.02710,0.39590,0,0,True,ok
+65,SCATC.OL,Scatec,Technology & renewables,2014-10-02,2026-09-11,2910,623,1,0.03950,0.19380,0,0,False,ok
+66,AKER.OL,Aker,Investment companies,2007-07-31,2026-09-11,4609,994,0,0.05680,0.23160,0,0,False,ok
+67,BONHR.OL,Bonheur,Investment companies,2007-07-31,2026-09-11,4609,994,0,0.10910,0.16580,0,0,False,ok

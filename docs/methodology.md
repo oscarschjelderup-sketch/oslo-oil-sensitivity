@@ -114,6 +114,39 @@ tercile spread, for the impact window and for the drift window. Across 63 testab
 Reading: the cross-section of oil sensitivity is stable enough to be estimated in advance, which is what a scenario
 table needs. There is no evidence that it predicts returns after the shock.
 
+## 3b. What kind of shock was it?
+
+Each event is labelled by the sign of the cumulative S&P 500 log return over the same [0,+1] window as the oil move
+(prices forward-filled first, so a US holiday inside the window counts as no move rather than as missing):
+
+* same sign as oil -> **demand-type** (a growth scare or boom moves oil and equities together)
+* opposite sign    -> **supply-type** (an outage or OPEC decision moves oil against the economy)
+
+Shock betas are then estimated per unit in one regression across events, with White standard errors:
+
+    CAR = a + a_s·S + b_demand·(oil × D) + b_supply·(oil × S)
+
+where S and D are the supply/demand indicators. `test_equal` gives the difference and its p-value; q-values correct
+across the eleven aggregates. A threshold-free version regresses CAR on the oil move *and* the S&P 500 move, so
+`beta_oil_net` is the reaction to oil with global equities held fixed.
+
+This is an ex-post label for an event study, not an identification scheme: it uses the same two days as the reaction
+it explains, and the S&P 500 is a proxy for global demand news rather than a measurement of it. A structural VAR of the
+Kilian type would identify the shocks properly, from oil production, global activity and inventories; it needs monthly
+data this project does not have.
+
+## 4b. Multiple testing
+
+Sixty-three stocks tested at the 5% level produce about three "significant" oil betas even when none has any oil
+exposure. Every p-value across units therefore comes with a Benjamini-Hochberg q-value (`stats/multiple.py`): with m
+tests sorted so that p(1) <= ... <= p(m),
+
+    q(i) = min over j >= i of  p(j)·m/j
+
+A finding with q <= 0.05 belongs to a set in which at most 5% are expected to be false discoveries. The family is the
+kind of unit: the 63 stocks together, the 10 sectors together. Effect on the results: the 16 significantly positive
+partial betas are unchanged, the significantly negative ones fall from 17 to 13.
+
 ## 5. Regimes
 
 One regression per unit with the oil return split in two and a t-test that the two betas are equal (HAC covariance).
@@ -132,6 +165,24 @@ and is the market (correlation 0.94 with OSEBX). PC2 (7%) separates seafood from
 PCA is run on returns, not on engineered columns such as moving averages, which are all functions of the same price and
 would only rediscover that.
 
+## Robustness: another oil series, a longer sample
+
+Two alternatives run through the same code as the baseline (Brent front-month future from Yahoo, sample from July 2007):
+
+| Variant | Oil series | Stock prices from | Index beta | Rank corr. with baseline |
+|---|---|---|---|---|
+| Baseline | Brent future (Yahoo) | 2007-07-30 | 0.29 | 1.00 |
+| Spot, same sample | Brent spot, EIA via FRED | 2007-07-30 | 0.25 | 0.99 |
+| Spot, from 2005 | Brent spot, EIA via FRED | 2005-01-03 | 0.25 | 0.99 |
+
+The two oil series have a 0.92 weekly return correlation over 994 weeks; the largest change in any single stock's beta
+is 0.12. The longer sample matters more than the vendor: two-year windows ending before September 2008 average an index
+beta of 0.23 (87 windows, range 0.15 to 0.27) against 0.51 for windows ending 2009-2013. The level today (0.21 on
+average since 2015) is close to the pre-crash level, so most of the "decline" is the 2008 crash leaving the window.
+
+FRED publishes with about a week's lag, so this runs for the pinned paper only. The inputs are cached and fingerprinted
+in the manifest like any other snapshot.
+
 ## Live mode
 
 `oilbeta live` sets the sample end to yesterday (an intraday run would otherwise mix half-finished daily bars into the
@@ -143,6 +194,6 @@ stop more than ten days before the requested end, in which case the previous sna
 ## Tests
 
 Two golden tests pin the results (the pinned snapshot's headline numbers, and a seeded synthetic market pushed through
-the whole chain). The other 45 tests cover the config rules and use synthetic data with known answers: recovery of planted betas, the partial/total identity, HAC against
+the whole chain). The other 56 tests cover the config rules, the price sources and the FDR correction, and use synthetic data with known answers: recovery of planted betas, the partial/total identity, HAC against
 a naive double-loop, no-look-ahead checks that tamper with future data, the holiday-alignment rule, and an
 out-of-sample test that must find skill on impact and none on drift in a world built that way.

@@ -319,7 +319,7 @@ let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(renderRolli
 (function shocks(){
   const L = DATA.shocks.latest, host = $("latestRows");
   if (L){
-    $("latestHead").textContent = dfmt(L.date) + ": Brent " + pct(L.oil_move) + " over the shock day and the next" + (L.spearman == null ? "" : " · rank correlation across " + L.n_stocks + " stocks " + signed(L.spearman));
+    $("latestHead").textContent = dfmt(L.date) + ": Brent " + pct(L.oil_move) + " over the shock day and the next" + (L.type ? " · " + L.type + "-type (S&P 500 " + pct(L.world_move) + ")" : "") + (L.spearman == null ? "" : " · rank correlation across " + L.n_stocks + " stocks " + signed(L.spearman));
     let dom = 0; L.rows.forEach(r => { dom = Math.max(dom, Math.abs(r.pred), Math.abs(r.real)); }); dom *= 1.12; const P = v => 50 + 50*v/dom;
     const head = H("div", "row rowhead", null, host); H("div", "name", "", head); H("div", "", "", head); H("div", "num", "Predicted", head); H("div", "num p", "Realised", head);
     L.rows.forEach(r => { const row = H("div", "row", null, host); row.tabIndex = 0; H("div", "name" + (r.kind === "market" ? " strong" : ""), r.name, row);
@@ -328,13 +328,14 @@ let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(renderRolli
       H("div", "mark hollow", null, tr).style.left = P(r.pred) + "%"; H("div", "mark", null, tr).style.left = P(r.real) + "%";
       H("div", "num dim", pct(r.pred), row); H("div", "num p", pct(r.real), row); row.title = r.name + ": predicted " + pct(r.pred, 2) + ", realised " + pct(r.real, 2); });
   } else { $("latestHead").textContent = "No oil shock in the sample yet."; }
-  const tb = $("shockTable"), cols = ["Shock day", "Brent, two days", "Size (σ)", "Index predicted", "Index realised", "Rank corr. across stocks", "Status"];
+  const tb = $("shockTable"), cols = ["Shock day", "Brent, two days", "Size (σ)", "Type", "S&P 500", "Index predicted", "Index realised", "Rank corr. across stocks", "Status"];
   const thead = H("tr", "", null, H("thead", "", null, tb)); cols.forEach(c => { const th = H("th", "", c, thead); th.style.cursor = "default"; });
   const body = H("tbody", "", null, tb);
   DATA.shocks.recent.forEach(e => { const tr = H("tr", "", null, body); H("td", "", dfmt(e.date), tr); H("td", "", pct(e.oil_move), tr); H("td", "", signed(e.z, 1), tr);
+    H("td", "", e.type || "–", tr); H("td", "", pct(e.world_move), tr);
     H("td", "", pct(e.idx_pred), tr); H("td", "", pct(e.idx_real), tr); H("td", "", signed(e.spearman), tr); const td = H("td", "", null, tr); H("span", "status", e.complete ? "complete" : "drift window open", td); });
   const o = DATA.oos;
-  $("shockNote").textContent = "A shock is a day where Brent moves more than " + M.z_threshold + " trailing standard deviations. Predictions use betas estimated only on weeks that ended before the shock. Track record over " + o.n + " shocks: mean rank correlation " + signed(o.mean) + " (t = " + num(o.t, 1) + "), positive in " + Math.round(o.share_pos*100) + "% of them. " + (Math.abs(o.drift_t) < 2 ? "The same ranking does not predict the days after" : "In this sample the ranking also lines up with the days after") + " (" + signed(o.drift_mean) + ", t = " + num(o.drift_t, 1) + ").";
+  $("shockNote").textContent = "A shock is a day where Brent moves more than " + M.z_threshold + " trailing standard deviations. It is demand-type when the S&P 500 moves the same way as oil over the two days, supply-type when it moves against it. Predictions use betas estimated only on weeks that ended before the shock. Track record over " + o.n + " shocks: mean rank correlation " + signed(o.mean) + " (t = " + num(o.t, 1) + "), positive in " + Math.round(o.share_pos*100) + "% of them. " + (Math.abs(o.drift_t) < 2 ? "The same ranking does not predict the days after" : "In this sample the ranking also lines up with the days after") + " (" + signed(o.drift_mean) + ", t = " + num(o.drift_t, 1) + ").";
 })();
 
 /* ---------- full table ---------- */
