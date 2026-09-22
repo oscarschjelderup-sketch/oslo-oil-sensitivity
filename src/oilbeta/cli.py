@@ -57,7 +57,8 @@ def run(config: Path = DEFAULT_CONFIG, refresh: bool = typer.Option(False, help=
 @app.command()
 def live(config: Path = DEFAULT_CONFIG,
          offline: bool = typer.Option(False, help="Rebuild from the cached live snapshot without downloading."),
-         retries: int = typer.Option(0, help="Extra download attempts before falling back to the cached snapshot.")):
+         retries: int = typer.Option(0, help="Extra download attempts before falling back to the cached snapshot."),
+         no_candles: bool = typer.Option(False, help="Skip the daily-candles file for the chart.")):
     """Refresh prices up to yesterday's close, re-estimate everything and rebuild the live monitor."""
     cfg = load_config(config).as_live()
     res = pipeline.run(cfg, refresh=not offline, retries=retries, log=lambda msg: console.print(f"[dim]{msg}[/]"))
@@ -70,6 +71,58 @@ def live(config: Path = DEFAULT_CONFIG,
     console.print(f"Index oil beta, latest window: [bold]{now['beta_oil_total']:.2f}[/] "
                   f"({now['total_lo']:.2f} to {now['total_hi']:.2f}); {len(res.tables['events'])} oil shocks in the sample")
     console.print(f"  monitor   {paths['dashboard']}")
+    if not no_candles:
+        try:
+            candles_path = _write_candles(cfg)
+            console.print(f"  candles   {candles_path}")
+        except Exception as exc:                    # a chart extra must never fail the monitor
+            console.print(f"[yellow]  candles skipped ({exc})[/]")
+
+
+def _write_candles(cfg, months: int = 6) -> Path:
+    """Daily OHLC for the chart on the page: six months for every series, rebuilt with the monitor."""
+    from datetime import date, timedelta
+
+    tickers = [cfg.oil_ticker, cfg.market.late_ticker, *[t for t in cfg.context.values() if t.endswith("=X")], *cfg.tickers]
+    start = (date.fromisoformat(cfg.end) - timedelta(days=31 * months)).isoformat()
+    frames = data.fetch_daily_ohlc(tickers, start, cfg.end)
+    return outputs.candles.write(outputs.candles.build(cfg, frames), cfg.results_dir / "candles.json")
+
+
+@app.command()
+def quotes(config: Path = DEFAULT_CONFIG,
+           out: Path = typer.Option(Path("live/quotes.json"), help="Where to write the document."),
+           retries: int = typer.Option(2, help="Extra download attempts before falling back to the previous document.")):
+    """15-minute quotes for the "Today" panel: every series relative to Oslo Børs's previous close."""
+    import time as _time
+
+    cfg = load_config(config).as_live()
+    tickers = [cfg.oil_ticker, cfg.market.late_ticker, *[t for t in cfg.context.values() if t.endswith("=X")], *cfg.tickers]
+    doc, error = None, None
+    for attempt in range(retries + 1):
+        try:
+            bars = data.fetch_intraday(tickers)
+            doc = outputs.quotes.build(cfg, bars)
+            break
+        except Exception as exc:
+            error = exc
+            if attempt < retries:
+                console.print(f"[dim]  download failed ({exc}); retrying[/]")
+                _time.sleep(20)
+    if doc is None:
+        previous = outputs.quotes.load(out)
+        if previous is None:
+            raise typer.Exit(code=1)
+        doc = outputs.quotes.mark_stale(previous, reason=f"refresh failed: {error}")
+        console.print(f"[yellow]Download failed; re-published the previous document as stale ({error})[/]")
+    path = outputs.quotes.write(doc, out)
+    s = doc["session"]
+    state = "open" if s["market_open"] else "closed"
+    console.print(f"Session {s['date']} ({state}), latest bar {s['latest_bar']} ({s['age_minutes']:.0f} min old"
+                  f"{', STALE' if s['stale'] else ''})")
+    b = doc["brent"]
+    console.print(f"Brent {b['last']} ({b['change']:+.2%} since Oslo close) · {doc['coverage']['stocks_with_quotes']} stocks quoted")
+    console.print(f"  quotes    {path}")
 
 
 @app.command()

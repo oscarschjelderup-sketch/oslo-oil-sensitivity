@@ -200,6 +200,29 @@ reproducible. Shocks enter once their [0,+1] window exists; windows that reach p
 not partial sums, and such events are left out of the averaged CAR paths. The download is rejected if Brent or OSEBX
 stop more than ten days before the requested end, in which case the previous snapshot is served and flagged as stale.
 
+## The 15-minute layer
+
+`oilbeta quotes` (`data/intraday.py`, `outputs/quotes.py`) fetches 15-minute bars for Brent, the index, USD/NOK and
+every stock, and writes one document (schema `oilbeta.quotes/1`). Everything in it is a price, a time or a flag; no
+estimate is made here and nothing here feeds one.
+
+* **One window.** Every move is measured from Oslo Børs's previous close — the last index bar before the current
+  session's 09:00. Brent's move over the *same* window starts the previous evening, which is the oil news Oslo prices at
+  the open. A stock that has not traded today reports its last print and a zero move.
+* **Predicted vs realised.** The page multiplies each unit's total oil beta (last 260 weeks, from the daily study) by
+  Brent's move and shows the result beside the realised move. A sector's realised move is the equal-weighted mean of its
+  members that have traded, matching how the sector betas were built. Intraday moves carry far more noise than the weekly
+  relationship, so the page presents a gap as the normal case.
+* **Staleness.** The document records the latest bar and its age; during trading hours a bar older than 45 minutes marks
+  the document stale. If the download fails, the previous document is re-published with `stale: true` and a reason,
+  never a gap. Free Oslo Børs data is delayed 15 minutes by the exchange; the page states it.
+* **Charts.** Candlesticks are drawn with TradingView's Lightweight Charts (Apache 2.0). Intraday bars carry Oslo
+  wall-clock times; daily candles (`outputs/candles.py`, six months, rebuilt by the daily job) are *unadjusted* OHLC, as
+  a trader sees them. Estimates use adjusted closes. The two never mix.
+* **Delivery.** `quotes.yml` runs every 15 minutes in trading hours and force-pushes `quotes.json` as a single-commit
+  orphan branch; the page reads it from raw.githubusercontent.com (CORS-enabled, five-minute CDN cache) and refreshes
+  itself every five minutes while visible.
+
 ## Tests
 
 Two golden tests pin the results (the pinned snapshot's headline numbers, and a seeded synthetic market pushed through

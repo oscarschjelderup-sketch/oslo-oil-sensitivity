@@ -13,3 +13,4 @@ decided, why, and what was given up.
 | [6](0006-flags-never-silent-fixes.md) | Data problems are flagged and fixed in the config, never silently in code |
 | [7](0007-demand-and-supply-shocks.md) | Split oil shocks into demand-type and supply-type; correct for multiple testing |
 | [8](0008-second-price-source.md) | Add a second price source as a check, not as an input |
+| [9](0009-live-layer-that-estimates-nothing.md) | A 15-minute live layer that estimates nothing |

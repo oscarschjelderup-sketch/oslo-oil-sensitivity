@@ -86,7 +86,16 @@ td:nth-child(2){color:var(--muted)} td small{color:var(--muted);font-size:11.5px
 tr.agg td:first-child{font-weight:600}
 .status{font-size:11.5px;padding:1px 7px;border-radius:999px;background:var(--chip);color:var(--muted)}
 footer{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;display:flex;flex-direction:column;gap:6px;max-width:90ch}
+.pill.off::before{background:var(--muted)}
+.tickers{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0 14px}
+.tick{padding:10px 12px;background:var(--bg);border:1px solid var(--line)}
+.tick .label{font-size:12px;color:var(--muted)} .tick .value{font-family:var(--serif);font-size:24px;font-weight:600;line-height:1.15;font-variant-numeric:tabular-nums}
+.tick .chg{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums} .chg.up{color:var(--pos)} .chg.down{color:var(--neg)}
+.tick .sub{font-size:11.5px;color:var(--muted)}
+.tvchart{position:relative;width:100%;height:340px;margin-top:10px}
+.tvchart .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:16px}
 @media (max-width:560px){
+  .tvchart{height:260px}
   .row{grid-template-columns:minmax(84px,118px) 1fr 56px;font-size:12.5px}
   .row .p{display:none}
 }
@@ -103,6 +112,34 @@ footer{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padd
   </header>
 
   <div class="kpis" id="kpis"></div>
+
+  <section id="today">
+    <h2>Today, since Oslo's last close</h2>
+    <div class="panel">
+      <div class="stamp"><span class="pill off" id="todayPill">Loading live quotes…</span><span id="todayStamp"></span></div>
+      <div class="tickers" id="todayTickers"></div>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Chart" id="chartPick">
+          <button type="button" data-k="intraday" data-id="brent" aria-pressed="true">Brent · 15 min</button>
+          <button type="button" data-k="intraday" data-id="index" aria-pressed="false">Oslo Børs · 15 min</button>
+          <button type="button" data-k="intraday" data-id="usdnok" aria-pressed="false">USD/NOK · 15 min</button>
+        </div>
+        <label for="candleSel">Six months, daily</label><select id="candleSel"><option value="">Choose a series…</option></select>
+      </div>
+      <div class="tvchart" id="liveChart"><div class="empty" id="chartEmpty">Loading chart…</div></div>
+      <p class="note" id="chartNote" style="margin-top:8px"></p>
+    </div>
+    <h3 style="margin:8px 0 0">What the oil beta predicted, and what happened</h3>
+    <div class="panel">
+      <div class="controls"><div class="seg" role="group" aria-label="Rows" id="todaySeg">
+        <button type="button" data-g="sectors" aria-pressed="true">Sectors</button>
+        <button type="button" data-g="movers" aria-pressed="false">Biggest movers</button></div></div>
+      <div class="rows" id="todayRows" style="margin-top:10px"></div>
+      <div class="legend" style="margin-top:10px"><span><i class="ring"></i>predicted: the unit's oil beta × Brent's move</span>
+        <span><i class="dot"></i>realised move since Oslo's previous close</span></div>
+    </div>
+    <p class="note" id="todayNote"></p>
+  </section>
 
   <section id="whatif">
     <h2>If Brent moves&hellip;</h2>
@@ -162,6 +199,7 @@ footer{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padd
   </footer>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
 <!--__DATA_SCRIPT__-->
 <script>
 const DATA = window.OIL_DATA;
@@ -367,6 +405,158 @@ let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(renderRolli
 $("footMethod").textContent = "Method: r = α + β·index + β_oil·Brent on Friday-to-Friday log returns since " + M.sample_start.slice(0,4) + "; the index is first stripped of its own oil component, so betas are total effects. " + M.n_events + " rule-based oil shocks feed the event study. Code, tests and the pinned research report live in the oslo-oil-sensitivity repository.";
 (function links(){ const L = M.links || {}, host = $("footLinks"), keys = Object.keys(L); if (!keys.length) return; host.hidden = false;
   keys.forEach((k, i) => { if (i) host.appendChild(document.createTextNode(" · ")); const a = H("a", "", k, host); a.href = L[k]; a.style.color = "var(--pos)"; }); })();
+
+/* ---------- today: live quotes, candles, predicted vs realised ---------- */
+(function today(){
+  const pill = $("todayPill"), stamp = $("todayStamp"), tickers = $("todayTickers"), rows = $("todayRows"), note = $("todayNote");
+  const chartEl = $("liveChart"), empty = $("chartEmpty"), pick = $("chartPick"), sel = $("candleSel"), chartNote = $("chartNote");
+  const urls = {quotes: M.quotes_url || "quotes.json", candles: M.candles_url || "candles.json"};
+  const LW = window.LightweightCharts;
+  let Q = null, C = null, chart = null, series = null, priceLine = null, group = "sectors";
+  let view = {kind: "intraday", id: "brent"};
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const oslo = iso => new Date(iso).toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit", timeZone: "Europe/Oslo"});
+  const money = (x, d) => x == null ? "–" : x.toLocaleString("en-GB", {minimumFractionDigits: d, maximumFractionDigits: d});
+
+  /* --- chart --- */
+  const palette = () => ({upColor: css("--pos"), downColor: css("--neg"), wickUpColor: css("--pos"), wickDownColor: css("--neg")});
+  const theme = () => ({
+    layout: {background: {type: "solid", color: css("--surface")}, textColor: css("--muted"), fontFamily: css("--sans"), fontSize: 11},
+    grid: {vertLines: {color: css("--line")}, horzLines: {color: css("--line")}},
+    rightPriceScale: {borderColor: css("--line")},
+    timeScale: {borderColor: css("--line"), timeVisible: view.kind === "intraday", secondsVisible: false, rightOffset: 2},
+  });
+  function ensureChart(){
+    if (chart) return chart;
+    if (!LW){ empty.textContent = "The chart library did not load (offline?). The numbers above and below do not depend on it."; return null; }
+    empty.hidden = true;
+    chart = LW.createChart(chartEl, Object.assign(theme(), {autoSize: true, crosshair: {mode: LW.CrosshairMode.Normal}, localization: {locale: "en-GB"}}));
+    series = chart.addSeries(LW.CandlestickSeries, Object.assign({borderVisible: false}, palette()));
+    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { chart.applyOptions(theme()); series.applyOptions(palette()); });
+    return chart;
+  }
+  function draw(){
+    if (!ensureChart()) return;
+    let bars = [], prev = null, title = "";
+    if (view.kind === "intraday"){
+      const q = Q && Q[view.id]; if (!q || !q.bars) { chartNote.textContent = "No intraday bars for this series."; return; }
+      bars = q.bars.map(b => ({time: b[0], open: b[1], high: b[2], low: b[3], close: b[4]}));
+      prev = q.prev_close;
+      title = q.name + " · 15-minute bars, last five sessions, Oslo time · 15-minute delayed";
+    } else {
+      const s = C && C.series[view.id]; if (!s) { chartNote.textContent = "Daily candles are not available in this copy."; return; }
+      bars = s.bars.map(b => ({time: b[0], open: b[1], high: b[2], low: b[3], close: b[4]}));
+      title = s.name + " · daily candles, six months to " + dfmt(C.through) + " · unadjusted prices";
+    }
+    chart.applyOptions(theme());
+    series.setData(bars);
+    if (priceLine){ series.removePriceLine(priceLine); priceLine = null; }
+    if (prev != null) priceLine = series.createPriceLine({price: prev, color: css("--muted"), lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "prev close"});
+    chart.timeScale().fitContent();
+    chartNote.textContent = title + ". Chart: TradingView Lightweight Charts.";
+  }
+  pick.addEventListener("click", ev => { const b = ev.target.closest("button"); if (!b) return;
+    view = {kind: b.dataset.k, id: b.dataset.id}; sel.value = "";
+    [...pick.children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); draw(); });
+  sel.addEventListener("change", async () => {
+    if (!sel.value) return;
+    [...pick.children].forEach(x => x.setAttribute("aria-pressed", "false"));
+    if (!C){ try { C = await (await fetch(urls.candles, {cache: "no-cache"})).json(); } catch (e) { chartNote.textContent = "Daily candles could not be loaded."; return; } }
+    view = {kind: "daily", id: sel.value}; draw(); });
+  (function fillSelect(){
+    const add = (parent, id, name) => { const o = document.createElement("option"); o.value = id; o.textContent = name; parent.appendChild(o); };
+    const head = document.createElement("optgroup"); head.label = "Factors";
+    add(head, "BZ=F", "Brent"); add(head, "OSEBX.OL", "Oslo Børs index"); add(head, "NOK=X", "USD/NOK"); sel.appendChild(head);
+    const bySector = {}; U.filter(u => u.kind === "stock").forEach(u => (bySector[u.sector] = bySector[u.sector] || []).push(u));
+    Object.keys(bySector).forEach(s => { const g = document.createElement("optgroup"); g.label = s;
+      bySector[s].sort((a,b) => a.name.localeCompare(b.name)).forEach(u => add(g, u.id, u.name)); sel.appendChild(g); });
+  })();
+
+  /* --- header and tickers --- */
+  function renderHeader(){
+    const s = Q.session, refreshed = Q.refreshed_utc || Q.generated_utc;
+    pill.className = "pill " + (s.stale ? "warn" : s.market_open ? "" : "off");
+    pill.textContent = s.stale ? "Stale quotes" : s.market_open ? "Market open" : "Market closed";
+    stamp.textContent = (s.market_open ? "" : "last session " + dfmt(s.date) + " · ") + "15-minute delayed · latest bar " + oslo(s.latest_bar) +
+      " Oslo · refreshed " + oslo(refreshed) + (s.stale ? " · " + (s.stale_reason || "no fresh bars for " + Math.round(s.age_minutes) + " min") : "");
+    tickers.textContent = "";
+    [["brent", "$", 2], ["index", "", 2], ["usdnok", "", 3]].forEach(([k, unit, d]) => {
+      const q = Q[k]; if (!q) return;
+      const t = H("div", "tick", null, tickers);
+      H("div", "label", q.name, t);
+      H("div", "value", unit + money(q.last, d), t);
+      const c = H("div", "chg " + (q.change > 0 ? "up" : q.change < 0 ? "down" : ""), pct(q.change, 2), t);
+      c.title = "since Oslo's previous close (" + money(q.prev_close, d) + " at " + oslo(q.prev_close_at) + ")";
+      H("div", "sub", "range " + money(q.session_low, d) + " – " + money(q.session_high, d) + " · " + oslo(q.last_at), t);
+    });
+  }
+
+  /* --- predicted vs realised --- */
+  function realisedBySector(){
+    const acc = {};
+    U.filter(u => u.kind === "stock").forEach(u => { const q = Q.stocks[u.id]; if (!q || q.change == null) return; (acc[u.sector] = acc[u.sector] || []).push(q.change); });
+    return Object.fromEntries(Object.entries(acc).map(([s, a]) => [s, {realised: a.reduce((p, c) => p + c, 0) / a.length, n: a.length}]));
+  }
+  const pct2 = x => x == null ? "–" : Math.abs(x) < 5e-5 ? "0.00%" : pct(x, 2);
+  function renderRows(){
+    const x = Math.log(1 + (Q.brent && Q.brent.change != null ? Q.brent.change : 0));
+    const predict = u => ({pred: Math.expm1(u.beta * x), lo: Math.expm1(Math.min(u.lo, u.hi) * x), hi: Math.expm1(Math.max(u.lo, u.hi) * x)});
+    let list;
+    if (group === "sectors"){
+      const sec = realisedBySector();
+      list = U.filter(u => u.kind !== "stock").map(u => { const r = u.kind === "market" ? {realised: Q.index ? Q.index.change : null, n: null} : sec[u.id];
+        return Object.assign({name: u.name, kind: u.kind, n: r && r.n, real: r ? r.realised : null}, predict(u)); });
+    } else {
+      list = U.filter(u => u.kind === "stock" && Q.stocks[u.id] && Q.stocks[u.id].change != null)
+        .map(u => Object.assign({name: u.name, kind: "stock", real: Q.stocks[u.id].change}, predict(u)))
+        .sort((a, b) => Math.abs(b.real) - Math.abs(a.real)).slice(0, 12);
+    }
+    list = list.filter(r => r.real != null).sort((a, b) => b.pred - a.pred);
+    let dom = 0.005; list.forEach(r => { dom = Math.max(dom, Math.abs(r.pred), Math.abs(r.real)); }); dom *= 1.12;
+    const P = v => 50 + 50 * v / dom;
+    rows.textContent = "";
+    const head = H("div", "row rowhead", null, rows); H("div", "name", "", head); H("div", "", "", head); H("div", "num", "Predicted", head); H("div", "num p", "Realised", head);
+    list.forEach(r => {
+      const row = H("div", "row", null, rows); row.tabIndex = 0;
+      H("div", "name" + (r.kind === "market" ? " strong" : ""), r.name, row);
+      const tr = H("div", "track", null, row); H("div", "zero", null, tr).style.left = "50%";
+      const lk = H("div", "link", null, tr); lk.style.left = Math.min(P(r.pred), P(r.real)) + "%"; lk.style.width = Math.abs(P(r.pred) - P(r.real)) + "%";
+      H("div", "mark hollow", null, tr).style.left = P(r.pred) + "%"; H("div", "mark", null, tr).style.left = P(r.real) + "%";
+      H("div", "num dim", pct2(r.pred), row); H("div", "num p", pct2(r.real), row);
+      row.title = r.name + ": predicted " + pct2(r.pred) + " (" + pct2(r.lo) + " to " + pct2(r.hi) + "), realised " + pct2(r.real) + (r.n ? " across " + r.n + " stocks" : "");
+    });
+    const b = Q.brent, idx = INDEX;
+    note.textContent = "Brent " + pct(b.change, 2) + " since Oslo's previous close (" + oslo(b.prev_close_at) + "). Predicted = each unit's total oil beta from the last " +
+      Math.round(M.scen_window / 52) + " years of weekly returns, applied to that move; for the index that is " + num(idx.beta) + " × Brent. " +
+      "Intraday moves are far noisier than the weekly relationship — oil explains " + Math.round((byId["Exploration & production"] || idx).r2_oil * 100) +
+      "% of weekly variance for E&P and about none for a bank — so a gap between the two marks is the normal case, not a failure. " +
+      "Sector moves are equal-weighted across the members that have traded. Prices 15-minute delayed, refreshed every 15 minutes in trading hours.";
+  }
+  $("todaySeg").addEventListener("click", ev => { const b = ev.target.closest("button"); if (!b) return; group = b.dataset.g;
+    [...$("todaySeg").children].forEach(x => x.setAttribute("aria-pressed", String(x === b))); if (Q) renderRows(); });
+
+  /* --- loading and refresh --- */
+  async function load(){
+    let fresh;
+    try {
+      const r = await fetch(urls.quotes + (urls.quotes.includes("?") ? "&" : "?") + "t=" + Date.now(), {cache: "no-store"});
+      if (!r.ok) throw new Error(r.status);
+      fresh = await r.json();
+    } catch (e) {
+      if (Q) return;                                   // keep showing the last good document
+      pill.className = "pill off"; pill.textContent = "Live quotes unavailable";
+      stamp.textContent = "This copy cannot reach the quotes feed (offline, or opened from disk). Everything below is the daily study.";
+      empty.textContent = "Live chart needs the quotes feed."; tickers.textContent = ""; rows.textContent = ""; note.textContent = "";
+      return;
+    }
+    Q = fresh;
+    renderHeader(); renderRows(); draw();               // a bug here shows in the console, on purpose
+  }
+  load();
+  setInterval(() => { if (document.visibilityState === "visible") load(); }, 5 * 60 * 1000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(); });
+})();
+
 renderWhatIf(); renderRolling();
 })();
 </script>

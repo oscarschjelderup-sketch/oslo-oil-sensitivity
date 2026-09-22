@@ -1,0 +1,61 @@
+# The 15-minute layer. During Oslo trading hours this fetches intraday bars for Brent, the index,
+# USD/NOK and every stock in the universe, and publishes one small document to the `quotes` branch,
+# which the monitor reads from raw.githubusercontent.com (CORS-enabled, 5-minute CDN cache).
+#
+# Why a branch and not the Pages site: a Pages deployment replaces the whole site, so a 15-minute
+# job would have to rebuild it every time. Writing one file to an orphan branch touches nothing else.
+# The branch is force-pushed with a single commit each run, so it never accumulates history.
+#
+# The cron window covers Oslo's 09:00-16:25 session in both summer (UTC+2) and winter (UTC+1) time;
+# runs outside the session are cheap and just re-state that the market is closed. If Yahoo throttles
+# a run, the previous document is re-published as stale rather than leaving a gap.
+name: Quotes
+
+on:
+  schedule:
+    - cron: "*/15 6-15 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: quotes
+  cancel-in-progress: true
+
+jobs:
+  quotes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --frozen
+
+      - name: Restore the previous document (the fallback if this refresh fails)
+        run: |
+          mkdir -p live
+          git fetch --depth=1 origin quotes 2>/dev/null && git show origin/quotes:quotes.json > live/quotes.json \
+            || echo "no previous document"
+
+      - name: Fetch 15-minute bars and build the document
+        run: uv run oilbeta quotes --out live/quotes.json --retries 2
+
+      - name: Publish to the quotes branch
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          stamp=$(python3 -c "import json;d=json.load(open('live/quotes.json'));s=d['session'];print(f\"{s['date']} latest bar {s['latest_bar']}{' STALE' if s['stale'] else ''}\")")
+          tmp=$(mktemp -d)
+          cp live/quotes.json "$tmp/"
+          cd "$tmp"
+          git init -q -b quotes
+          git config user.name "oilbeta quotes"
+          git config user.email "quotes@users.noreply.github.com"
+          git add quotes.json
+          git commit -q -m "quotes: $stamp"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" quotes
+          echo "published: $stamp"

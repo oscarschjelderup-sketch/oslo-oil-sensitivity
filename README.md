@@ -64,6 +64,13 @@ stock, and a predicted-versus-realised scorecard that gains a row each time Bren
 soon as its two-day impact window exists; its drift window stays empty until those days have happened, never a partial
 sum. If the download fails, the last good snapshot is served and the page says so.
 
+On top of that sits a **15-minute live layer** ([decision 9](docs/decisions/0009-live-layer-that-estimates-nothing.md)):
+`oilbeta quotes` fetches intraday bars for Brent, the index, USD/NOK and all 63 stocks, and the page shows the current
+session — candlestick charts drawn with [TradingView's Lightweight Charts](https://github.com/tradingview/lightweight-charts),
+today's moves since Oslo's previous close, and what each sector's oil beta *predicted* for today's Brent move next to
+what actually happened. It estimates nothing: the betas are still weekly and still daily. Prices are 15-minute delayed
+(an exchange rule for free data), and the page says so.
+
 ### How it runs
 
 GitHub Actions is the run model; nothing has to be switched on anywhere.
@@ -73,6 +80,10 @@ GitHub Actions is the run model; nothing has to be switched on anywhere.
   the pinned report and the workbook to GitHub Pages. Yahoo sometimes throttles cloud IPs, so the last good price
   snapshot is kept in the Actions cache and served, visibly marked, when a download fails. The job only goes red when
   the page has been stale for more than a week.
+- [quotes.yml](.github/workflows/quotes.yml) runs every 15 minutes during Oslo trading hours: it fetches intraday bars,
+  builds `quotes.json` and force-pushes it as a single-commit orphan branch that the page reads from
+  raw.githubusercontent.com. A Pages deploy would rebuild the whole site 40 times a day; one file on a branch touches
+  nothing else. A failed refresh re-publishes the previous document marked stale.
 - [ci.yml](.github/workflows/ci.yml) lints and runs the test suite on every push and pull request.
 - For a local refresh on a schedule there is [scripts/update_live.ps1](scripts/update_live.ps1) (Windows Task Scheduler).
 
@@ -134,7 +145,8 @@ They are tied by an identity that the test suite checks to machine precision:
 ```bash
 uv sync --extra dev         # exact, locked environment (uv.lock); or: pip install -e ".[dev]"
 oilbeta run                 # all six steps on the pinned snapshot -> results/
-oilbeta live                # same model on prices up to yesterday -> live/dashboard.html
+oilbeta live                # same model on prices up to yesterday -> live/dashboard.html (+ candles.json)
+oilbeta quotes              # 15-minute quotes for the "Today" panel -> live/quotes.json
 oilbeta fetch               # data snapshot + validation report only
 oilbeta stock NAS.OL        # one stock, including tickers outside the configured universe
 oilbeta stock EQNR.OL --json oil/EQNR.OL.json   # the same, as a factsheet another tool can read
@@ -193,10 +205,10 @@ configs/
   data_exceptions.yaml     every manual data fix, with its reason
 src/oilbeta/
   config.py                pydantic models: the three files are validated before anything runs
-  data/                    sources.py (Yahoo, FRED) · snapshot.py (cache, manifest) · align.py · validate.py
+  data/                    sources.py (Yahoo, FRED) · snapshot.py (cache, manifest) · align.py · validate.py · intraday.py
   stats/                   ols.py · hac.py · multiple.py: numpy only, arrays in and numbers out
   analysis/                betas · events · shocktype · scenarios · regimes · pca · robustness
-  outputs/                 tables · figures · report · dashboard · templates/
+  outputs/                 tables · figures · report · dashboard · factsheet · quotes · candles · templates/
   pipeline.py  cli.py      the six steps in order, and the `oilbeta` command
 tests/
   unit/                    config, data, sources, stats, analysis, shock types, live mode: synthetic data with known answers
@@ -204,7 +216,7 @@ tests/
 docs/
   methodology.md           every formula and parameter
   decisions/               eight short notes on why it is built this way
-.github/workflows/         ci.yml (lint + tests) · live-monitor.yml (scheduled rebuild + GitHub Pages)
+.github/workflows/         ci.yml (lint + tests) · live-monitor.yml (daily rebuild + GitHub Pages) · quotes.yml (15-minute quotes)
 scripts/update_live.ps1    optional local refresh
 uv.lock                    locked environment
 results/                   tables and figures of the pinned snapshot (the report and workbook are release assets)

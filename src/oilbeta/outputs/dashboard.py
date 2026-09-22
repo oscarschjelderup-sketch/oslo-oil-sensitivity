@@ -135,6 +135,9 @@ def build_payload(res: Results) -> dict:
             "n_stocks": len(cfg.tickers), "n_events": int(len(ev)),
             "roll_window": cfg.betas.rolling_window, "scen_window": cfg.scenarios.window,
             "z_threshold": cfg.events.z_threshold,
+            # the live layer: a 15-minute quotes document and daily candles, both written by other jobs
+            "quotes_url": os.environ.get("OILBETA_QUOTES_URL", "quotes.json"),
+            "candles_url": os.environ.get("OILBETA_CANDLES_URL", "candles.json"),
             # optional footer links, set by the deploy workflow (relative or absolute URLs)
             "links": {k: v for k, v in {"Research report": os.environ.get("OILBETA_REPORT_URL"),
                                         "Workbook (xlsx)": os.environ.get("OILBETA_WORKBOOK_URL"),

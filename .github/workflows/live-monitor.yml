@@ -53,6 +53,9 @@ jobs:
           OILBETA_REPORT_URL: paper/report.html
           OILBETA_WORKBOOK_URL: oil_sensitivity.xlsx
           OILBETA_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          # the live layer: quotes come from the `quotes` branch (see quotes.yml), candles ship with the site
+          OILBETA_QUOTES_URL: https://raw.githubusercontent.com/${{ github.repository }}/quotes/quotes.json
+          OILBETA_CANDLES_URL: candles.json
         run: uv run oilbeta live --retries 3
 
       - name: How fresh is it?
@@ -88,6 +91,7 @@ jobs:
         run: |
           cp live/dashboard.html site/index.html
           cp live/dashboard.json live/oil_sensitivity.xlsx site/
+          cp live/candles.json site/ 2>/dev/null || echo "::warning::no candles.json this run; the chart's daily view will be empty"
           touch site/.nojekyll
 
       - uses: actions/upload-pages-artifact@v3
