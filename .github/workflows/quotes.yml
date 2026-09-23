@@ -1,31 +1,41 @@
-# The 15-minute layer. During Oslo trading hours this fetches intraday bars for Brent, the index,
-# USD/NOK and every stock in the universe, and publishes one small document to the `quotes` branch,
-# which the monitor reads from raw.githubusercontent.com (CORS-enabled, 5-minute CDN cache).
+# The 15-minute layer. One run refreshes the quotes every 15 minutes until Oslo Børs closes.
 #
-# Why a branch and not the Pages site: a Pages deployment replaces the whole site, so a 15-minute
-# job would have to rebuild it every time. Writing one file to an orphan branch touches nothing else.
-# The branch is force-pushed with a single commit each run, so it never accumulates history.
+# Why a loop and not a */15 cron: GitHub runs scheduled workflows on a best-effort basis. Measured on
+# this repository, the daily 05:30 UTC schedule started at 10:09 UTC (4 h 39 min late), and a */15
+# schedule added the evening before did not fire once during the next morning. A cron cannot keep a
+# 15-minute rhythm; a running job can. So:
 #
-# The cron window covers Oslo's 09:00-16:25 session in both summer (UTC+2) and winter (UTC+1) time;
-# runs outside the session are cheap and just re-state that the market is closed. If Yahoo throttles
-# a run, the previous document is re-published as stale rather than leaving a gap.
+#   * any trigger starts a run - the early "kick-start" schedules below (several, because each may be
+#     hours late or dropped), a manual dispatch, or a hand-off from the previous run;
+#   * the run fetches at once, then sleeps until each tick (one minute after every quarter-hour,
+#     09:01-16:46 Oslo time, from `oilbeta next-tick`) and fetches again;
+#   * before GitHub's 6-hour job limit it hands off with `workflow_dispatch`, which does not queue
+#     behind the scheduler the way cron does;
+#   * `concurrency` with cancel-in-progress: false keeps exactly one loop alive: extra triggers wait,
+#     collapse into one pending run, and do a single post-close refresh when the loop ends.
+#
+# Each refresh force-pushes `quotes.json` as a single-commit orphan branch that the page reads from
+# raw.githubusercontent.com. A failed download re-publishes the previous document marked stale.
 name: Quotes
 
 on:
   schedule:
-    - cron: "*/15 6-15 * * 1-5"
+    - cron: "17 1,3,5,7 * * 1-5"    # kick-starts before the open (UTC; off the top of the hour, when load peaks)
+    - cron: "47 9,11,13 * * 1-5"    # safety restarts in case a chain died during the day
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write     # push the quotes branch
+  actions: write      # hand off to a fresh run before the job time limit
 
 concurrency:
   group: quotes
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   quotes:
     runs-on: ubuntu-latest
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -34,28 +44,52 @@ jobs:
           enable-cache: true
       - run: uv sync --frozen
 
-      - name: Restore the previous document (the fallback if this refresh fails)
+      - name: Restore the previous document (the fallback if a refresh fails)
         run: |
           mkdir -p live
           git fetch --depth=1 origin quotes 2>/dev/null && git show origin/quotes:quotes.json > live/quotes.json \
             || echo "no previous document"
 
-      - name: Fetch 15-minute bars and build the document
-        run: uv run oilbeta quotes --out live/quotes.json --retries 2
-
-      - name: Publish to the quotes branch
+      - name: Refresh every 15 minutes until the session is over
         env:
           TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -e
-          stamp=$(python3 -c "import json;d=json.load(open('live/quotes.json'));s=d['session'];print(f\"{s['date']} latest bar {s['latest_bar']}{' STALE' if s['stale'] else ''}\")")
-          tmp=$(mktemp -d)
-          cp live/quotes.json "$tmp/"
-          cd "$tmp"
-          git init -q -b quotes
-          git config user.name "oilbeta quotes"
-          git config user.email "quotes@users.noreply.github.com"
-          git add quotes.json
-          git commit -q -m "quotes: $stamp"
-          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" quotes
-          echo "published: $stamp"
+          set +e                                    # one failed refresh must never end the day's loop
+          budget=$(( 330 * 60 ))                    # hand off well inside the 355-minute job limit
+          started=$(date +%s)
+
+          publish() {
+            stamp=$(python3 -c "import json;s=json.load(open('live/quotes.json'))['session'];print(f\"{s['date']} latest bar {s['latest_bar']}{' STALE' if s['stale'] else ''}\")")
+            tmp=$(mktemp -d)
+            cp live/quotes.json "$tmp/"
+            ( cd "$tmp" \
+              && git init -q -b quotes \
+              && git -c user.name="oilbeta quotes" -c user.email="quotes@users.noreply.github.com" add quotes.json \
+              && git -c user.name="oilbeta quotes" -c user.email="quotes@users.noreply.github.com" commit -q -m "quotes: $stamp" \
+              && git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" quotes ) \
+              && echo "$(date -u +%H:%M) published: $stamp" \
+              || echo "::warning::publish failed at $(date -u +%H:%M)"
+            rm -rf "$tmp"
+          }
+          refresh() {
+            if uv run --frozen oilbeta quotes --out live/quotes.json --retries 2; then publish
+            else echo "::warning::refresh failed at $(date -u +%H:%M) and there was no previous document"; fi
+          }
+
+          refresh
+          while true; do
+            wait=$(uv run --frozen -q oilbeta next-tick --quotes-file live/quotes.json 2>/dev/null | tail -1)
+            if [ "$wait" = "done" ]; then echo "session over, loop ends"; break; fi
+            case "$wait" in ''|*[!0-9]*) echo "::warning::next-tick said '$wait'; retrying in 15 min"; wait=900 ;; esac
+            left=$(( budget - ($(date +%s) - started) ))
+            if [ "$wait" -ge "$left" ]; then
+              [ "$left" -gt 60 ] && sleep $(( left - 60 ))
+              echo "job budget reached; handing off to a fresh run"
+              gh workflow run quotes.yml --repo "$GITHUB_REPOSITORY" --ref main \
+                || echo "::error::hand-off failed; the next kick-start schedule will restart the loop"
+              break
+            fi
+            sleep "$wait"
+            refresh
+          done

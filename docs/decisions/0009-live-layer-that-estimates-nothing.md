@@ -30,6 +30,17 @@ trades almost around the clock, so its move over that window starts the previous
 the right comparison, because that is the oil news Oslo prices at the open. Sector moves are
 equal-weighted across the members that have traded, matching how the sector betas were built.
 
+*A loop, not a 15-minute cron.* The first version used `cron: "*/15 6-15 * * 1-5"`. It never fired: GitHub
+runs schedules on a best-effort basis, and on this repository the daily 05:30 UTC job had started 4 h 39 min
+late the day before. A schedule cannot hold a 15-minute rhythm, but a running job can. One run now fetches,
+sleeps until the next tick (09:01–16:46 Oslo, one minute after each quarter-hour, so the delayed closing-auction
+bar is caught), and repeats; before the 6-hour job limit it dispatches its successor, which starts at once
+because `workflow_dispatch` does not wait in the scheduler's queue. Several early schedules are kept only as
+kick-starts, and `concurrency` with `cancel-in-progress: false` guarantees a single loop. The tick schedule
+lives in Python (`quotes.next_tick`) so the edge cases are tested: the switch to winter time, a public holiday
+(a document fetched late today that still has no bars from today), and a morning of failed downloads, which
+must not be mistaken for a holiday.
+
 **What the page says about itself.** Prices are 15-minute delayed (an exchange rule for free data,
 not a choice); the layer refreshes every 15 minutes in trading hours; a failed refresh re-publishes
 the previous document marked stale rather than leaving a gap; and intraday moves are far noisier

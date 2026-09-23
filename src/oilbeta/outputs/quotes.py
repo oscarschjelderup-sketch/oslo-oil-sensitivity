@@ -26,6 +26,12 @@ SCHEMA = "oilbeta.quotes/1"
 OSLO = ZoneInfo("Europe/Oslo")
 OPEN, CLOSE = time(9, 0), time(16, 25)          # continuous trading 09:00-16:20, closing auction to 16:25
 STALE_AFTER_MINUTES = 45                         # during trading hours; beyond this the page shows a warning
+# The refresh loop fetches one minute after each quarter-hour. Free data is delayed 15 minutes by the
+# exchange, so the bar that closes at 16:30 (the closing auction) is visible at about 16:45: the last
+# tick of the day is 16:46.
+FIRST_TICK, LAST_TICK = time(9, 1), time(16, 46)
+TICK_EVERY = timedelta(minutes=15)
+HOLIDAY_CHECK_AFTER = time(10, 30)               # by then a trading day has published bars
 
 
 def _bars(frame: pd.DataFrame, tz: ZoneInfo, limit: int | None = None) -> list[list]:
@@ -152,6 +158,39 @@ def mark_stale(previous: dict, now: datetime | None = None, reason: str = "") ->
     doc["session"]["age_minutes"] = round((now - latest).total_seconds() / 60, 1)
     doc["refreshed_utc"] = now.isoformat(timespec="seconds")
     return doc
+
+
+def next_tick(now: datetime | None = None, latest: dict | None = None) -> datetime | None:
+    """When the refresh loop should fetch next, or None when today's session is over.
+
+    Called right after a fetch, so a tick that is due exactly now is already done and the next one is
+    returned. `latest` is the last published document. It proves the exchange is closed today (a public
+    holiday) only if it was itself fetched today after 10:30, successfully, and still has no bars from
+    today. An older document - yesterday's, or a stale re-publish after a failed download - says nothing
+    about today, so the loop keeps going.
+    """
+    now_oslo = (now or datetime.now(UTC)).astimezone(OSLO)
+    if now_oslo.weekday() >= 5:
+        return None
+    day = now_oslo.date()
+    if latest and now_oslo.time() >= HOLIDAY_CHECK_AFTER:
+        session = latest.get("session", {})
+        try:
+            fetched = datetime.fromisoformat(latest["generated_utc"]).astimezone(OSLO)
+        except (KeyError, TypeError, ValueError):
+            fetched = None
+        fetched_late_today = fetched is not None and fetched.date() == day and fetched.time() >= HOLIDAY_CHECK_AFTER
+        if fetched_late_today and not session.get("stale_reason") and session.get("date", day.isoformat()) < day.isoformat():
+            return None
+    first = datetime.combine(day, FIRST_TICK, tzinfo=OSLO)
+    last = datetime.combine(day, LAST_TICK, tzinfo=OSLO)
+    if now_oslo < first:
+        return first
+    base = now_oslo.replace(minute=now_oslo.minute - now_oslo.minute % 15, second=0, microsecond=0)
+    tick = base + timedelta(minutes=1)
+    if tick <= now_oslo:
+        tick += TICK_EVERY
+    return tick if tick <= last else None
 
 
 def oslo_now() -> datetime:

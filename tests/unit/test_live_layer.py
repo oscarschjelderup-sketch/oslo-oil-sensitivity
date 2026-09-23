@@ -136,3 +136,59 @@ def test_candles_are_compact_named_and_free_of_gaps(cfg, tmp_path):
     path = candles.write(doc, tmp_path / "c" / "candles.json")
     assert json.loads(path.read_text(encoding="utf-8")) == doc
     assert path.stat().st_size < 30_000                                             # two series, six months
+
+
+# --------------------------------------------------------------------------- the refresh loop's tick schedule
+def oslo(y, mo, d, h, mi, s=0):
+    return datetime(y, mo, d, h, mi, s, tzinfo=OSLO)
+
+
+@pytest.mark.parametrize("now, expected", [
+    (oslo(2026, 9, 22, 7, 30), oslo(2026, 9, 22, 9, 1)),        # before the open: wait for the first tick
+    (oslo(2026, 9, 22, 9, 5), oslo(2026, 9, 22, 9, 16)),        # between ticks
+    (oslo(2026, 9, 22, 9, 15, 30), oslo(2026, 9, 22, 9, 16)),   # just before one
+    (oslo(2026, 9, 22, 9, 16), oslo(2026, 9, 22, 9, 31)),       # exactly on one: it was just done, move on
+    (oslo(2026, 9, 22, 16, 40), oslo(2026, 9, 22, 16, 46)),     # the delayed closing-auction bar
+])
+def test_ticks_fall_one_minute_after_each_quarter_hour(now, expected):
+    assert quotes.next_tick(now) == expected
+
+
+@pytest.mark.parametrize("now", [
+    oslo(2026, 9, 22, 16, 46, 1),                                # after the last tick
+    oslo(2026, 9, 26, 12, 0),                                    # Saturday
+    oslo(2026, 9, 27, 10, 0),                                    # Sunday
+])
+def test_no_tick_when_the_session_is_over(now):
+    assert quotes.next_tick(now) is None
+
+
+def test_ticks_follow_oslo_wall_clock_across_the_switch_to_winter_time():
+    """After 25 Oct 2026 Oslo is UTC+1: 09:16 Oslo is 08:16 UTC, not 07:16."""
+    winter = datetime(2026, 11, 3, 8, 5, tzinfo=UTC)             # 09:05 Oslo
+    assert quotes.next_tick(winter).astimezone(UTC) == datetime(2026, 11, 3, 8, 16, tzinfo=UTC)
+    summer = datetime(2026, 9, 22, 7, 5, tzinfo=UTC)             # 09:05 Oslo
+    assert quotes.next_tick(summer).astimezone(UTC) == datetime(2026, 9, 22, 7, 16, tzinfo=UTC)
+
+
+def doc(session_date, fetched_oslo, **session):
+    return {"generated_utc": fetched_oslo.astimezone(UTC).isoformat(), "session": {"date": session_date, **session}}
+
+
+def test_a_holiday_ends_the_loop_but_a_throttled_or_old_document_does_not():
+    now = oslo(2026, 9, 22, 11, 0)
+    holiday = doc("2026-09-21", oslo(2026, 9, 22, 10, 46))                 # fetched today, late enough, no bars today
+    assert quotes.next_tick(now, holiday) is None
+    early = doc("2026-09-21", oslo(2026, 9, 22, 9, 31))                    # fetched before 10:30: too early to tell
+    assert quotes.next_tick(now, early) == oslo(2026, 9, 22, 11, 1)
+    throttled = doc("2026-09-21", oslo(2026, 9, 22, 10, 46), stale_reason="refresh failed: 429")
+    assert quotes.next_tick(now, throttled) == oslo(2026, 9, 22, 11, 1)    # a failed download proves nothing
+    todays = doc("2026-09-22", oslo(2026, 9, 22, 10, 46))
+    assert quotes.next_tick(now, todays) == oslo(2026, 9, 22, 11, 1)
+
+
+def test_yesterdays_document_says_nothing_about_today():
+    """The regression that was caught by hand: the loop starts mid-session holding yesterday's document."""
+    last_night = doc("2026-09-22", oslo(2026, 9, 22, 23, 11))
+    assert quotes.next_tick(oslo(2026, 9, 23, 14, 10), last_night) == oslo(2026, 9, 23, 14, 16)
+    assert quotes.next_tick(oslo(2026, 9, 23, 14, 10), {"session": {"date": "2026-09-22"}}) == oslo(2026, 9, 23, 14, 16)

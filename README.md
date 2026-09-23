@@ -80,10 +80,14 @@ GitHub Actions is the run model; nothing has to be switched on anywhere.
   the pinned report and the workbook to GitHub Pages. Yahoo sometimes throttles cloud IPs, so the last good price
   snapshot is kept in the Actions cache and served, visibly marked, when a download fails. The job only goes red when
   the page has been stale for more than a week.
-- [quotes.yml](.github/workflows/quotes.yml) runs every 15 minutes during Oslo trading hours: it fetches intraday bars,
-  builds `quotes.json` and force-pushes it as a single-commit orphan branch that the page reads from
-  raw.githubusercontent.com. A Pages deploy would rebuild the whole site 40 times a day; one file on a branch touches
-  nothing else. A failed refresh re-publishes the previous document marked stale.
+- [quotes.yml](.github/workflows/quotes.yml) keeps the 15-minute layer fresh. GitHub runs schedules on a best-effort
+  basis — measured here, the daily 05:30 UTC job started 4 h 39 min late and a `*/15` schedule did not fire once in its
+  first morning — so a cron cannot hold a 15-minute rhythm. Instead one run loops: it fetches, sleeps until the next tick
+  (one minute after each quarter-hour, 09:01–16:46 Oslo time), fetches again, and before GitHub's 6-hour job limit
+  hands off to a fresh run with `workflow_dispatch`, which does not queue behind the scheduler. Several early schedules
+  act only as kick-starts; a concurrency group keeps exactly one loop alive. Each refresh force-pushes `quotes.json` as a
+  single-commit orphan branch that the page reads from raw.githubusercontent.com, and a failed download re-publishes the
+  previous document marked stale.
 - [ci.yml](.github/workflows/ci.yml) lints and runs the test suite on every push and pull request.
 - For a local refresh on a schedule there is [scripts/update_live.ps1](scripts/update_live.ps1) (Windows Task Scheduler).
 

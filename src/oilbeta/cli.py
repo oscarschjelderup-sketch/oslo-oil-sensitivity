@@ -125,6 +125,18 @@ def quotes(config: Path = DEFAULT_CONFIG,
     console.print(f"  quotes    {path}")
 
 
+@app.command("next-tick")
+def next_tick_cmd(quotes_file: Path = typer.Option(Path("live/quotes.json"), help="The last published quotes document.")):
+    """Seconds until the next 15-minute fetch, or 'done' when today's session is over. Used by quotes.yml."""
+    from datetime import UTC, datetime
+
+    tick = outputs.quotes.next_tick(latest=outputs.quotes.load(quotes_file))
+    if tick is None:
+        print("done")
+    else:
+        print(max(0, int((tick - datetime.now(UTC)).total_seconds())))
+
+
 @app.command()
 def stock(ticker: str, config: Path = DEFAULT_CONFIG,
           json_out: Path = typer.Option(None, "--json", help="Also write a factsheet another tool can read (schema oilbeta.stock/1).")):
