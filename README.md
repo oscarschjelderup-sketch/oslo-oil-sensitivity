@@ -2,8 +2,18 @@
 
 [![CI](https://github.com/oscarschjelderup-sketch/oslo-oil-sensitivity/actions/workflows/ci.yml/badge.svg)](https://github.com/oscarschjelderup-sketch/oslo-oil-sensitivity/actions/workflows/ci.yml)
 [![Live monitor](https://github.com/oscarschjelderup-sketch/oslo-oil-sensitivity/actions/workflows/live-monitor.yml/badge.svg)](https://github.com/oscarschjelderup-sketch/oslo-oil-sensitivity/actions/workflows/live-monitor.yml)
+[![Quotes](https://github.com/oscarschjelderup-sketch/oslo-oil-sensitivity/actions/workflows/quotes.yml/badge.svg)](https://github.com/oscarschjelderup-sketch/oslo-oil-sensitivity/actions/workflows/quotes.yml)
 
-**Live monitor, rebuilt after every trading day: https://oscarschjelderup-sketch.github.io/oslo-oil-sensitivity/**
+**Live monitor — quotes every 15 minutes in trading hours, the whole study re-estimated every day:
+https://oscarschjelderup-sketch.github.io/oslo-oil-sensitivity/**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/live_today_dark.png">
+  <img alt="The live monitor at 14:12 on 23 September 2026, Brent 3.2% below Oslo's previous close: a TradingView-style chart of the last five sessions, and each sector's oil-beta prediction for the move next to what actually happened" src="docs/img/live_today.png">
+</picture>
+
+*The monitor at 14:12 on 23 September 2026, with Brent 3.2% below Oslo's previous close: 15-minute candles drawn with TradingView's Lightweight Charts,
+and what each sector's oil beta predicted for the move next to what happened. Quotes are 15-minute delayed.*
 
 **A factor study of 63 Norwegian stocks and 10 sectors, 2007–2026: how much each one moves when Brent moves, how sure
 we can be about it, and whether that knowledge survives an out-of-sample test.**
