@@ -30,9 +30,10 @@ trades almost around the clock, so its move over that window starts the previous
 the right comparison, because that is the oil news Oslo prices at the open. Sector moves are
 equal-weighted across the members that have traded, matching how the sector betas were built.
 
-*A loop, not a 15-minute cron.* The first version used `cron: "*/15 6-15 * * 1-5"`. It never fired: GitHub
-runs schedules on a best-effort basis, and on this repository the daily 05:30 UTC job had started 4 h 39 min
-late the day before. A schedule cannot hold a 15-minute rhythm, but a running job can. One run now fetches,
+*A loop, not a 15-minute cron.* The first version used `cron: "*/15 6-15 * * 1-5"`. On its first trading day
+it fired once in its first 25 slots, at 12:36 Oslo time, four and a half hours after the first one. GitHub runs
+schedules on a best-effort basis, and on this repository the daily 05:30 UTC job started 4 h 39 min late on
+22 September and 4 h 40 min late on the 23rd. A schedule cannot hold a 15-minute rhythm, but a running job can. One run now fetches,
 sleeps until the next tick (09:01–16:46 Oslo, one minute after each quarter-hour, so the delayed closing-auction
 bar is caught), and repeats; before the 6-hour job limit it dispatches its successor, which starts at once
 because `workflow_dispatch` does not wait in the scheduler's queue. Several early schedules are kept only as
