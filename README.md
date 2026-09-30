@@ -58,6 +58,12 @@ The full write-up is the [research report](https://oscarschjelderup-sketch.githu
    correlation 0.99). Starting the sample in 2005 instead of 2007: two-year windows ending before the autumn-2008 crash
    average 0.23, windows ending 2009–2013 average 0.51, and the average since 2015 is 0.21. So the "decline" is largely
    the 2008 crash leaving the rolling window.
+7. **The krone is not the channel.** Brent is priced in dollars and the krone is an oil currency (a 10% rise in Brent
+   has come with a 1.1% stronger krone), so part of every oil beta could be currency. Holding USD/NOK fixed as a third
+   factor splits each total beta exactly into a direct part, a part through the index and a part through the krone. The
+   krone part is 0.03 of the index's 0.29, at most 0.03 for any sector, and no sector's partial beta moves by more than
+   0.02. Where the krone does matter it works *against* the oil beta: the dollar-earning tanker and container owners
+   (Frontline, MPC Container Ships, Okeanis, Hafnia) gain when the krone weakens, which is when oil falls.
 
 ## Two modes: a pinned paper and a live monitor
 
@@ -93,9 +99,10 @@ GitHub Actions is the run model; nothing has to be switched on anywhere.
 - [quotes.yml](.github/workflows/quotes.yml) keeps the 15-minute layer fresh. GitHub runs schedules on a best-effort
   basis — measured here, the daily 05:30 UTC job started 4 h 39 min late and a `*/15` schedule did not fire once in its
   first morning — so a cron cannot hold a 15-minute rhythm. Instead one run loops: it fetches, sleeps until the next tick
-  (one minute after each quarter-hour, 09:01–16:46 Oslo time), fetches again, and before GitHub's 6-hour job limit
-  hands off to a fresh run with `workflow_dispatch`, which does not queue behind the scheduler. Several early schedules
-  act only as kick-starts; a concurrency group keeps exactly one loop alive. Each refresh force-pushes `quotes.json` as a
+  (one minute after each quarter-hour, 09:01–16:46 Oslo time), fetches again, and five hours in queues its successor
+  with `workflow_dispatch`, which waits in the concurrency group and takes over the moment the run ends, inside
+  GitHub's 6-hour job limit. The dispatch is retried at every tick: GitHub's API has answered HTTP 500 to it once.
+  Several early schedules act only as kick-starts; a concurrency group keeps exactly one loop alive. Each refresh force-pushes `quotes.json` as a
   single-commit orphan branch that the page reads from raw.githubusercontent.com, and a failed download re-publishes the
   previous document marked stale.
 - [ci.yml](.github/workflows/ci.yml) lints and runs the test suite on every push and pull request.
@@ -137,6 +144,7 @@ flowchart LR
 | 6 PCA | Do returns alone reveal an oil factor? | PCA on the cross-section of weekly returns (not on engineered columns) |
 | + Shock types | Is this the effect of oil, or of the news that moved oil? | Each shock labelled demand-type or supply-type by the sign of the S&P 500 move over the same two days; separate shock betas, an equality test, and a version that holds the world move fixed |
 | + Robustness | Does the answer depend on the vendor or on where the sample starts? | The whole beta step re-run with Brent spot from FRED, and with stock prices from 2005 |
+| + Krone | Is it the commodity or the currency? | USD/NOK as a third factor splits every total oil beta exactly into direct, through-the-index and through-the-krone parts; the headline model stays two-factor |
 
 Across units, p-values come with Benjamini-Hochberg q-values: with 63 stocks, a 5% test alone produces about three
 "significant" betas from nothing. The report and figures use a 5% false discovery rate.
@@ -154,6 +162,11 @@ beta. The project therefore reports two numbers that answer two questions:
 They are tied by an identity that the test suite checks to machine precision:
 `total = partial + β_mkt × (the index's own oil beta)`.
 
+With USD/NOK as a third factor the identity extends to
+`total = direct + β_mkt × (the index's own oil beta) + β_NOK × (the krone's own oil beta)`, which is how the report
+measures the currency channel without adopting a three-factor model
+([decision 10](docs/decisions/0010-krone-measured-not-adopted.md)).
+
 ## Quick start
 
 ```bash
@@ -164,7 +177,7 @@ oilbeta quotes              # 15-minute quotes for the "Today" panel -> live/quo
 oilbeta fetch               # data snapshot + validation report only
 oilbeta stock NAS.OL        # one stock, including tickers outside the configured universe
 oilbeta stock EQNR.OL --json oil/EQNR.OL.json   # the same, as a factsheet another tool can read
-pytest tests/unit           # 56 fast tests (~10 s); plain `pytest` adds the two golden tests (~1 min)
+pytest tests/unit           # 86 fast tests (~15 s); plain `pytest` adds the two golden tests (~1 min)
 ruff check .                # lint
 ```
 
@@ -180,8 +193,8 @@ reason). Unknown keys, impossible windows, a ticker in two sectors or a data fix
   returns dilute that gap and the stale prices of small caps; the event study handles it by using a two-day impact
   window.
 - **Standard errors written out in numpy.** OLS and the Newey-West covariance are ~40 lines in
-  [regression.py](src/oilbeta/regression.py), tested against scipy, against White's estimator at lag zero and against
-  a naive double-loop implementation.
+  [stats/ols.py](src/oilbeta/stats/ols.py) and [stats/hac.py](src/oilbeta/stats/hac.py), tested against scipy, against
+  White's estimator at lag zero and against a naive double-loop implementation.
 - **Flags, never silent fixes.** The validation step found four vendor errors (an unadjusted NOK 21 extraordinary
   dividend in Aker Solutions that shows up as a −41% day, two mis-applied share consolidations) and one ticker whose
   early history is a different company (Nel was DiaGenic until 2014). Each is removed by an explicit line in the config.
@@ -190,7 +203,7 @@ reason). Unknown keys, impossible windows, a ticker in two sectors or a data fix
   median; out-of-sample betas use only weeks that ended before each event. Each has a test that tampers with the
   future and checks the past does not change.
 - **The numbers are locked twice.** `uv.lock` pins every dependency, and two golden tests pin the results: one re-runs
-  the study on the pinned snapshot and compares 22 headline numbers with the README (wherever the raw prices exist),
+  the study on the pinned snapshot and compares 23 headline numbers with the README (wherever the raw prices exist),
   the other pushes a seeded synthetic market through the whole chain, report and dashboard included, on every push.
   A refactor cannot move a number without a test going red.
 - **Null results are reported.** The drift test and the volatility-regime split find nothing, and the report shows them.
@@ -203,7 +216,9 @@ reason). Unknown keys, impossible windows, a ticker in two sectors or a data fix
   that matters (it is most of the non-energy oil beta) but does not remove it: the label is assigned after the fact,
   from the same two days as the reaction it explains.
 - **Equal weights, hand-made sectors.** Sector portfolios are not investable indices.
-- **USD oil, NOK stocks.** The krone's own oil sensitivity is part of the total beta by design.
+- **USD oil, NOK stocks.** The krone's own oil sensitivity is part of the total beta by design. The report measures that
+  part (0.03 for the index) rather than removing it; what it cannot separate is a dollar reporter's translation effect
+  from its operating effect, since both sit in the krone beta.
 - **One vendor for stock prices.** The oil series is cross-checked against FRED, but the Oslo prices are Yahoo's alone.
 - **Index history is spliced.** OSEBX on Yahoo starts in 2013; earlier returns come from OSEFX (0.99 return
   correlation in the 625-day overlap, re-checked on every fetch).
@@ -221,7 +236,7 @@ src/oilbeta/
   config.py                pydantic models: the three files are validated before anything runs
   data/                    sources.py (Yahoo, FRED) · snapshot.py (cache, manifest) · align.py · validate.py · intraday.py
   stats/                   ols.py · hac.py · multiple.py: numpy only, arrays in and numbers out
-  analysis/                betas · events · shocktype · scenarios · regimes · pca · robustness
+  analysis/                betas · events · shocktype · scenarios · regimes · pca · robustness · krone
   outputs/                 tables · figures · report · dashboard · factsheet · quotes · candles · templates/
   pipeline.py  cli.py      the six steps in order, and the `oilbeta` command
 tests/
@@ -229,7 +244,7 @@ tests/
   integration/             golden tests: the pinned snapshot's numbers, and a synthetic market end to end
 docs/
   methodology.md           every formula and parameter
-  decisions/               eight short notes on why it is built this way
+  decisions/               ten short notes on why it is built this way
 .github/workflows/         ci.yml (lint + tests) · live-monitor.yml (daily rebuild + GitHub Pages) · quotes.yml (15-minute quotes)
 scripts/update_live.ps1    optional local refresh
 uv.lock                    locked environment

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from . import MARKET, OIL, data
-from .analysis import betas, events, pca, regimes, robustness, scenarios, shocktype
+from .analysis import betas, events, krone, pca, regimes, robustness, scenarios, shocktype
 from .config import Config
 
 
@@ -60,6 +60,11 @@ def run(cfg: Config, refresh: bool = False, log=print, rolling_stocks: bool = Tr
     rolling_frame = frame_w if rolling_stocks else frame_w[meta.index[meta["kind"] != "stock"]]
     res.tables["betas_rolling"] = betas.rolling_betas(rolling_frame, fac_w, b.rolling_window,
                                                       b.rolling_min_obs, b.hac_lags)
+    if krone.KRONE in weekly:                      # the currency channel: measured, never part of the headline model
+        fac_k = weekly[[MARKET, OIL, krone.KRONE]]
+        res.tables["krone_channel"] = krone.krone_table(frame_w, meta, fac_k, b.min_history, b.hac_lags)
+        res.tables["krone_rolling"] = krone.rolling_krone_oil_beta(fac_k, b.rolling_window, b.rolling_min_obs, b.hac_lags)
+        res.info["krone"] = krone.summary(res.tables["krone_channel"], fac_k, s.window, b.hac_lags)
 
     log("3/6  event study: rule-based oil shocks and abnormal returns")
     est = e.estimation_window

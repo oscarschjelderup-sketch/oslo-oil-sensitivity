@@ -48,7 +48,7 @@ written reason; genuine crashes stay in the sample:
     r_i,t = α + β_mkt · m_t + β_oil · o_t + ε_t
 
 estimated by OLS on weekly log returns. Standard errors are Newey-West (Bartlett kernel, lag
-`floor(4·(T/100)^(2/9))`, small-sample factor `T/(T−k)`), implemented in `regression.newey_west_cov`.
+`floor(4·(T/100)^(2/9))`, small-sample factor `T/(T−k)`), implemented in `stats/hac.py`.
 
 **Why two oil betas.** The index has its own oil beta γ (0.29 over the full sample). With `m` on the right-hand side,
 the share of a stock's oil exposure that runs through the market is absorbed by β_mkt.
@@ -65,6 +65,23 @@ estimation error in γ does not move the point estimate; its effect on the stand
 **Rolling estimates.** 104-week windows, at least 78 valid observations, re-orthogonalised inside each window.
 
 **Minimum history.** 156 weeks for a full-sample beta.
+
+**The krone channel** (`analysis/krone.py`, decision 10). Brent is priced in dollars and the krone is an oil currency, so
+with USD/NOK (`f`, kroner per dollar) as a third regressor,
+
+    r_i,t = α + d · o_t + β_mkt · m_t + β_NOK · f_t + ε_t
+
+the one-factor (total) oil beta splits exactly into
+
+    total = d + β_mkt · γ_mkt + β_NOK · γ_NOK
+
+where `γ_mkt` and `γ_NOK` are the index's and the krone's own oil betas over the same weeks. `d` is the "direct" beta; for
+the index the middle term does not exist. The table carries the gap of the identity (tested to 1e-12). Yahoo has no
+USD/NOK quote for four trading weeks of August 2008, so every term is estimated on the weeks where all series exist, four
+fewer than the headline table. The headline model stays two-factor: for a Norwegian investor the krone's response is part
+of what a Brent move means. Full sample: `γ_NOK` = −0.11 (weekly return correlation −0.28); the index's krone part is 0.03 of
+0.29, no sector's exceeds 0.03 in absolute value, and no sector's partial beta moves by more than 0.02 once the krone is
+held fixed. Over the last 260 weeks `γ_NOK` is −0.07.
 
 ## 3. Event study
 
@@ -219,8 +236,8 @@ estimate is made here and nothing here feeds one.
 * **Charts.** Candlesticks are drawn with TradingView's Lightweight Charts (Apache 2.0). Intraday bars carry Oslo
   wall-clock times; daily candles (`outputs/candles.py`, six months, rebuilt by the daily job) are *unadjusted* OHLC, as
   a trader sees them. Estimates use adjusted closes. The two never mix.
-* **Delivery.** `quotes.yml` runs every 15 minutes in trading hours and force-pushes `quotes.json` as a single-commit
-  orphan branch; the page reads it from raw.githubusercontent.com (CORS-enabled, five-minute CDN cache) and refreshes
+* **Delivery.** `quotes.yml` keeps one run alive through the session (decision 9): it refreshes at every tick, queues its
+  successor five hours in, and force-pushes `quotes.json` as a single-commit orphan branch after each refresh; the page reads it from raw.githubusercontent.com (CORS-enabled, five-minute CDN cache) and refreshes
   itself every five minutes while visible.
 
 ## Tests

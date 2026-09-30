@@ -9,8 +9,10 @@
 #     hours late or dropped), a manual dispatch, or a hand-off from the previous run;
 #   * the run fetches at once, then sleeps until each tick (one minute after every quarter-hour,
 #     09:01-16:46 Oslo time, from `oilbeta next-tick`) and fetches again;
-#   * before GitHub's 6-hour job limit it hands off with `workflow_dispatch`, which does not queue
-#     behind the scheduler the way cron does;
+#   * five hours in it queues its successor with `workflow_dispatch`; the successor waits in the
+#     concurrency group and starts the moment this run ends, which is before the 6-hour job limit.
+#     The dispatch is retried at every tick until it succeeds: GitHub's API answered HTTP 500 to it
+#     once (30 September 2026), and with a single attempt at the very end the loop lost five ticks;
 #   * `concurrency` with cancel-in-progress: false keeps exactly one loop alive: extra triggers wait,
 #     collapse into one pending run, and do a single post-close refresh when the loop ends.
 #
@@ -26,7 +28,7 @@ on:
 
 permissions:
   contents: write     # push the quotes branch
-  actions: write      # hand off to a fresh run before the job time limit
+  actions: write      # queue the successor run
 
 concurrency:
   group: quotes
@@ -56,8 +58,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e                                    # one failed refresh must never end the day's loop
-          budget=$(( 330 * 60 ))                    # hand off well inside the 355-minute job limit
-          started=$(date +%s)
+          budget=$(( 345 * 60 ))                    # stop refreshing here, inside the 355-minute job limit
+          handoff_after=$(( 300 * 60 ))             # queue the successor from here on; it waits in the
+          started=$(date +%s); successor=0          # concurrency group and starts the moment this run ends
 
           publish() {
             stamp=$(python3 -c "import json;s=json.load(open('live/quotes.json'))['session'];print(f\"{s['date']} latest bar {s['latest_bar']}{' STALE' if s['stale'] else ''}\")")
@@ -76,18 +79,28 @@ jobs:
             if uv run --frozen oilbeta quotes --out live/quotes.json --retries 2; then publish
             else echo "::warning::refresh failed at $(date -u +%H:%M) and there was no previous document"; fi
           }
+          handoff() {                               # three quick attempts; the loop tries again at the next tick
+            for attempt in 1 2 3; do
+              gh workflow run quotes.yml --repo "$GITHUB_REPOSITORY" --ref main && return 0
+              echo "::warning::hand-off attempt $attempt failed at $(date -u +%H:%M)"
+              sleep 20
+            done
+            return 1
+          }
 
           refresh
           while true; do
             wait=$(uv run --frozen -q oilbeta next-tick --quotes-file live/quotes.json 2>/dev/null | tail -1)
             if [ "$wait" = "done" ]; then echo "session over, loop ends"; break; fi
             case "$wait" in ''|*[!0-9]*) echo "::warning::next-tick said '$wait'; retrying in 15 min"; wait=900 ;; esac
-            left=$(( budget - ($(date +%s) - started) ))
-            if [ "$wait" -ge "$left" ]; then
-              [ "$left" -gt 60 ] && sleep $(( left - 60 ))
-              echo "job budget reached; handing off to a fresh run"
-              gh workflow run quotes.yml --repo "$GITHUB_REPOSITORY" --ref main \
-                || echo "::error::hand-off failed; the next kick-start schedule will restart the loop"
+            elapsed=$(( $(date +%s) - started ))
+            if [ "$successor" = 0 ] && [ "$elapsed" -ge "$handoff_after" ]; then
+              if handoff; then successor=1; echo "$(date -u +%H:%M) successor queued; it takes over when this run ends"
+              else echo "::warning::hand-off failed; trying again at the next tick"; fi
+            fi
+            if [ "$wait" -ge $(( budget - elapsed )) ]; then
+              if [ "$successor" = 1 ]; then echo "job budget reached; the successor takes over"
+              else echo "::error::job budget reached without a successor; the next kick-start schedule restarts the loop"; fi
               break
             fi
             sleep "$wait"

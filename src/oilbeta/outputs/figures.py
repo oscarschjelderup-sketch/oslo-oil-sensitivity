@@ -370,6 +370,53 @@ def oil_series_robustness(res: Results):
     return fig
 
 
+def krone_channel(res: Results):
+    t = res.tables["krone_channel"]
+    t = t[t["kind"] != "stock"].sort_values("beta_oil_total")
+    roll = res.tables["krone_rolling"].set_index("date")
+    fig, (ax, ax2) = plt.subplots(1, 2, figsize=(7.2, 4.4), gridspec_kw={"width_ratios": [1.6, 1], "wspace": 0.5})
+
+    # left: every total oil beta split into its three parts; positives stack right of zero, negatives left
+    _zero(ax)
+    y = np.arange(len(t))
+    pos, neg = np.zeros(len(t)), np.zeros(len(t))
+    parts = [("direct", BLUE, "Direct (index and krone held fixed)"),
+             ("via_market", GREY, "Through the index's own oil beta"),
+             ("via_krone", ORANGE, "Through the krone")]
+    for col, colour, label in parts:
+        v = t[col].fillna(0.0).to_numpy()
+        ax.barh(y, np.abs(v), left=np.where(v >= 0, pos, neg + v), color=colour, height=0.62, label=label, zorder=2)
+        pos, neg = pos + np.clip(v, 0, None), neg + np.clip(v, None, 0)
+    ax.scatter(t["beta_oil_total"], y, s=22, color=INK, marker="D", zorder=4, label="Total oil beta")
+    labels = ["Oslo Børs index" if u == MARKET else _short(u) for u in t.index]
+    ax.set_yticks(y, labels, fontsize=8)
+    for tick, unit in zip(ax.get_yticklabels(), t.index):
+        tick.set_color(INK)
+        tick.set_fontweight("bold" if unit == MARKET else "normal")
+    ax.grid(axis="y", visible=False)
+    ax.set_xlabel("Change in weekly return per 1% change in Brent")
+    ax.set_xlim(right=max(pos.max(), t["beta_oil_total"].max()) * 1.55)     # room for the legend beside the short bars
+    ax.legend(loc="lower right", fontsize=7.5, handletextpad=0.4, handlelength=1.2)
+    biggest = t["via_krone"].abs().max()
+    span = f"{res.info['sample']['start'][:4]}–{res.info['sample']['end'][:4]}"
+    _title(ax, "Oil reaches Oslo Børs through energy and the index, not the krone",      # spans both panels
+           f"Left: total oil beta split exactly into three parts, weekly returns {span}; through the krone at most "
+           f"{biggest:.2f} for any sector.\nRight: the krone's own oil beta, USD/NOK on Brent in rolling "
+           f"{res.cfg.betas.rolling_window}-week windows with a 95% band. Negative: oil up, krone stronger.")
+
+    # right: the krone's own oil beta over time
+    _zero(ax2, vertical=False)
+    ax2.fill_between(roll.index, roll["lo"], roll["hi"], color=ORANGE, alpha=0.15, lw=0)
+    ax2.plot(roll.index, roll["krone_oil_beta"], color=ORANGE, lw=1.6)
+    ax2.xaxis.set_major_locator(mdates.YearLocator(4))
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    ax2.grid(axis="x", visible=False)
+    ax2.set_ylabel("% change in USD/NOK per 1% change in Brent", fontsize=8)
+    ax2.text(0.03, 0.97, "The krone's own oil beta", transform=ax2.transAxes, va="top", ha="left", fontsize=9,
+             fontweight="bold", color=INK)
+    return fig
+
+
 FIGURES = {
     "01_sector_betas": sector_betas,
     "02_market_rolling_beta": market_rolling,
@@ -383,8 +430,10 @@ FIGURES = {
     "10_stock_betas": stock_betas,
     "11_shock_types": shock_types,
     "12_oil_series_robustness": oil_series_robustness,
+    "13_krone_channel": krone_channel,
 }
-OPTIONAL = {"12_oil_series_robustness": "robustness_rolling"}      # figure -> table it needs
+OPTIONAL = {"12_oil_series_robustness": "robustness_rolling",      # figure -> table it needs
+            "13_krone_channel": "krone_rolling"}
 
 
 def save_all(res: Results, out_dir: Path) -> dict[str, Path]:

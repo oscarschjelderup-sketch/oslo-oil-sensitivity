@@ -35,9 +35,12 @@ it fired once in its first 25 slots, at 12:36 Oslo time, four and a half hours a
 schedules on a best-effort basis, and on this repository the daily 05:30 UTC job started 4 h 39 min late on
 22 September and 4 h 40 min late on the 23rd. A schedule cannot hold a 15-minute rhythm, but a running job can. One run now fetches,
 sleeps until the next tick (09:01–16:46 Oslo, one minute after each quarter-hour, so the delayed closing-auction
-bar is caught), and repeats; before the 6-hour job limit it dispatches its successor, which starts at once
-because `workflow_dispatch` does not wait in the scheduler's queue. Several early schedules are kept only as
-kick-starts, and `concurrency` with `cancel-in-progress: false` guarantees a single loop. The tick schedule
+bar is caught), and repeats. Five hours in it queues its successor with `workflow_dispatch`, which does not wait in
+the scheduler's queue but in the concurrency group, and starts the moment the run ends; the run keeps refreshing
+until then. The dispatch is retried at every tick, because GitHub's API answered HTTP 500 to it once (30 September
+2026) and, with a single attempt at the very end of the run, the loop lost five ticks before a safety schedule
+restarted it. Several early schedules are kept only as kick-starts, and `concurrency` with
+`cancel-in-progress: false` guarantees a single loop. The tick schedule
 lives in Python (`quotes.next_tick`) so the edge cases are tested: the switch to winter time, a public holiday
 (a document fetched late today that still has no bars from today), and a morning of failed downloads, which
 must not be mistaken for a holiday.

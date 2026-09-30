@@ -33,6 +33,7 @@ PINNED = {
     "eqnr_total": 0.465176, "eqnr_partial": 0.242424, "nas_partial": -0.318514, "dnb_total": 0.284842,
     "shock_beta_ep": 0.550700, "oos_spearman_impact": 0.280400, "oos_t": 10.509944, "oos_spearman_drift": -0.011662,
     "index_beta_down": 0.369631, "index_beta_up": 0.186181, "pc1_share": 0.280381, "scenario_ep_10": 0.052953,
+    "index_via_krone": 0.029820,
 }
 PINNED_COUNTS = {"n_events": 69, "n_up": 22, "oos_n": 63, "n_sig_partial": 16, "weeks": 997, "trading_days": 4610}
 
@@ -52,6 +53,7 @@ def headline(res) -> tuple[dict, dict]:
         "index_beta_up": T["regime_direction"].loc[MARKET, "beta_up"],
         "pc1_share": T["pca_summary"].loc["PC1", "variance_share"],
         "scenario_ep_10": T["scenarios"].loc["Exploration & production", "exp_+10%"],
+        "index_via_krone": res.info["krone"]["index_via_krone"],
     }
     counts = {
         "n_events": len(ev), "n_up": int((ev["direction"] == "up").sum()),
@@ -123,6 +125,7 @@ SYNTHETIC = {
     "index_beta_latest_window": 0.296635, "shock_beta_ep": 0.813926, "oos_spearman_impact": 0.657493,
     "oos_t": 24.550218, "oos_spearman_drift": -0.022269, "index_beta_down": 0.230227,
     "index_beta_up": 0.341982, "pc1_share": 0.467828, "scenario_ep_10": 0.083170,
+    "index_via_krone": -0.000020,                                      # the synthetic krone has no oil beta
 }
 SYNTHETIC_COUNTS = {"n_events": 48, "n_up": 24, "oos_n": 42, "n_sig_partial": 8, "weeks": 469, "trading_days": 2348}
 
@@ -146,7 +149,8 @@ def test_end_to_end_on_a_synthetic_market(tmp_path):
     # 2. every deliverable is written and the monitor's payload is valid
     for key in ("report", "dashboard", "workbook"):
         assert paths[key].stat().st_size > 10_000, key
-    assert len(list(paths["figures"].glob("*.png"))) == 11      # 12 minus the robustness figure, which is skipped
+    assert len(list(paths["figures"].glob("*.png"))) == 12      # 13 minus the robustness figure, which is skipped
+    assert (res.tables["krone_channel"]["identity_gap"].abs() < 1e-12).all()
     payload = json.loads((cfg.results_dir / "dashboard.json").read_text(encoding="utf-8"))
     assert payload["meta"]["n_stocks"] == 16 and len(payload["units"]) == 21 and not payload["meta"]["live"]
     assert payload["shocks"]["latest"]["rows"] and payload["rolling"]["dates"][-1] <= cfg.end

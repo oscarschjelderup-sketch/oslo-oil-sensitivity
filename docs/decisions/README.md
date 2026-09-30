@@ -14,3 +14,4 @@ decided, why, and what was given up.
 | [7](0007-demand-and-supply-shocks.md) | Split oil shocks into demand-type and supply-type; correct for multiple testing |
 | [8](0008-second-price-source.md) | Add a second price source as a check, not as an input |
 | [9](0009-live-layer-that-estimates-nothing.md) | A 15-minute live layer that estimates nothing |
+| [10](0010-krone-measured-not-adopted.md) | USD/NOK as a third factor: measured, not adopted |

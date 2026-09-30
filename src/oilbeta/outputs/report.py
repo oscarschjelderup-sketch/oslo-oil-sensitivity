@@ -84,6 +84,25 @@ def _findings(res: Results) -> list[str]:
             f"against {r.loc[rb.BASELINE, 'index_beta']:.2f}, and stocks rank the same (rank correlation "
             f"{r.loc[rb.SPOT, 'rank_corr_with_baseline']:.2f}). Starting in 2005 instead of 2007, two-year windows that end "
             f"before the autumn-2008 crash average {pre:.2f}; windows ending 2009-2013 average {crisis:.2f}. {reading}")
+    if "krone_channel" in T:
+        k = res.info["krone"]
+        g = k["krone_oil_beta"]
+        gain = [x["name"] for x in k["krone_significant"] if x["beta_krone"] > 0]
+        lose = [x["name"] for x in k["krone_significant"] if x["beta_krone"] < 0]
+        who = [f"{', '.join(gain)} gain when the krone weakens"] if gain else []
+        who += [f"{', '.join(lose)} lose"] if lose else []
+        survivors = (f"Only {k['n_krone_significant']} stocks have a krone beta that survives the false-discovery cut: "
+                     f"{'; '.join(who)}." if who else "No stock has a krone beta that survives the false-discovery cut.")
+        same = (f"the same {n_partial} as in the two-factor model" if k["n_direct_positive"] == n_partial
+                else f"against {n_partial} in the two-factor model")
+        findings.append(
+            f"<b>The krone is not the channel.</b> Brent is priced in dollars and the krone is an oil currency: a 10% rise "
+            f"in Brent has come with a {abs(g) * 10:.1f}% {'stronger' if g < 0 else 'weaker'} krone. Holding USD/NOK fixed as "
+            f"a third factor splits every total beta exactly into a direct part, a part through the index and a part "
+            f"through the krone. The krone part is {k['index_via_krone']:.2f} of the index's {k['index_total']:.2f}, at most "
+            f"{abs(k['max_sector']['via_krone']):.2f} for any sector, and no sector's partial beta moves by more than "
+            f"{k['max_sector_partial_shift']:.2f} once the krone is held fixed. {k['n_direct_positive']} stocks keep a "
+            f"significantly positive direct oil beta, {same}. {survivors}")
     return findings
 
 
@@ -149,6 +168,18 @@ def _robustness_table(res: Results) -> str:
     return _fmt_table(t, formats, rename)
 
 
+def _krone_table(res: Results) -> str:
+    t = res.tables["krone_channel"]
+    t = t[t["kind"] != "stock"].sort_values("beta_oil_total", ascending=False).copy()
+    t["unit_name"] = ["Oslo Børs index" if u == MARKET else u for u in t.index]
+    t["krone_ci"] = t.apply(lambda r: f"{r['krone_lo']:+.2f} to {r['krone_hi']:+.2f}", axis=1)
+    formats = {"unit_name": "", "beta_oil_total": "{:.2f}", "direct": "{:+.2f}", "via_market": "{:+.2f}",
+               "via_krone": "{:+.2f}", "beta_krone": "{:+.2f}", "krone_ci": "", "krone_p": "{:.3f}"}
+    rename = {"unit_name": "", "beta_oil_total": "Total oil beta", "direct": "Direct", "via_market": "Through the index",
+              "via_krone": "Through the krone", "beta_krone": "Krone beta", "krone_ci": "95% interval", "krone_p": "p (krone)"}
+    return _fmt_table(t, formats, rename)
+
+
 def _data_notes(res: Results) -> dict:
     v = res.tables["validation"]
     flagged = v[(v["flags"] != "ok") & (v["sector"] != "factor")]
@@ -189,5 +220,6 @@ def write_html(res: Results, figure_paths: dict[str, Path], out_path: Path) -> N
         shock_type_table=_shock_type_table(res),
         robustness_table=_robustness_table(res) if "robustness_oil_series" in T else None,
         agreement=res.info.get("robustness"),
+        krone_table=_krone_table(res) if "krone_channel" in T else None, krone=res.info.get("krone"),
     )
     out_path.write_text(html, encoding="utf-8")

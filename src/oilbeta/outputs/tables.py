@@ -9,6 +9,7 @@ from ..pipeline import Results
 
 EXCEL_SHEETS = {
     "betas_full": "Betas (full sample)",
+    "krone_channel": "Krone channel",
     "scenarios": "Scenarios (recent betas)",
     "shock_betas": "Shock betas",
     "shock_type_counts": "Shock types",
