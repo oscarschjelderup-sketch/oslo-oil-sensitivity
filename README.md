@@ -9,11 +9,13 @@ https://oscarschjelderup-sketch.github.io/oslo-oil-sensitivity/**
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/live_today_dark.png">
-  <img alt="The live monitor at 14:12 on 23 September 2026, Brent 3.2% below Oslo's previous close: a TradingView-style chart of the last five sessions, and each sector's oil-beta prediction for the move next to what actually happened" src="docs/img/live_today.png">
+  <img alt="The live monitor after the close on 2 October 2026: a TradingView-style chart of the last five sessions, and each sector's move split into oil, the market beyond oil and its own news, with the range in which most days end" src="docs/img/live_today.png">
 </picture>
 
-*The monitor at 14:12 on 23 September 2026, with Brent 3.2% below Oslo's previous close: 15-minute candles drawn with TradingView's Lightweight Charts,
-and what each sector's oil beta predicted for the move next to what happened. Quotes are 15-minute delayed.*
+*The monitor after the close on 2 October 2026. Brent was 1.85% below Oslo's previous close when Oslo stopped, half a standard
+deviation: on days this size the oil beta has ranked stocks the right way two days in three. Each sector's move is split into
+oil, the market beyond oil and its own news, next to the range in which it ends on 80% of days. 15-minute candles drawn with
+TradingView's Lightweight Charts; quotes are 15-minute delayed.*
 
 **A factor study of 63 Norwegian stocks and 10 sectors, 2007–2026: how much each one moves when Brent moves, how sure
 we can be about it, and whether that knowledge survives an out-of-sample test.**
