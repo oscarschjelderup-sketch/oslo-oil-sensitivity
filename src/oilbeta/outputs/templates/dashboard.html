@@ -504,6 +504,8 @@ $("footMethod").textContent = "Method: r = α + β·index + β_oil·Brent on Fri
       const c = H("div", "chg " + (q.change > 0 ? "up" : q.change < 0 ? "down" : ""), pct(q.change, 2), t);
       c.title = "since Oslo's previous close (" + money(q.prev_close, d) + " at " + oslo(q.prev_close_at) + ")";
       H("div", "sub", "range " + money(q.session_low, d) + " – " + money(q.session_high, d) + " · " + oslo(q.last_at), t);
+      if (q.change_oslo != null && q.change != null && Math.abs(q.change - q.change_oslo) > 0.0005)   // it has traded on since Oslo stopped
+        H("div", "sub", pct(q.change_oslo, 2) + " when Oslo stopped (" + oslo(q.last_oslo_at) + ")", t);
     });
   }
 
