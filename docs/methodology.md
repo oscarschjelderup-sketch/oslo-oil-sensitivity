@@ -131,6 +131,39 @@ tercile spread, for the impact window and for the drift window. Across 63 testab
 Reading: the cross-section of oil sensitivity is stable enough to be estimated in advance, which is what a scenario
 table needs. There is no evidence that it predicts returns after the shock.
 
+## 4a. What the betas can say about one day
+
+`analysis/attribution.py`, decision 11. With `x` the Brent move and `m` the index move (log returns), and the betas of
+the scenario window (last 260 weeks), a unit's day splits exactly:
+
+    r = β_total · x  +  β_mkt · (m − γ · x)  +  own
+        oil             the market beyond oil    own news
+
+γ is the index's own oil beta. Nothing is forecast: `x` and `m` are the moves that happened.
+
+**The range of own news.** For each unit, the 10th and 90th percentile of the daily residual
+`r − β_mkt · m − β_partial · x` over the days of the same 260 weeks, computed with the weekly betas (for the index:
+`m − γ · x`). Empirical quantiles, so the coverage is 80% in sample without a distributional assumption. For the typical
+stock the range is −2.1% to +2.2%; for the index −1.0% to +1.0%. Oil accounts for 1.3% of the typical stock's weekly
+variance and oil plus the index for 15%.
+
+**When the ranking works.** For every trading day with at least 15 stocks, the Spearman rank correlation across stocks
+between (a) one-factor oil betas from the 260 weeks (at least 104) that ended before the week began and (b) that day's
+returns, signed by the direction of the Brent move. Days are grouped by the size of the Brent move in trailing standard
+deviations (250 days, lagged one day: the event rule).
+
+| Brent move, trailing σ | Days | Typical move | Mean rank correlation | Share of days positive |
+|---|---|---|---|---|
+| under 0.5 | 1,936 | 0.5% | +0.03 | 54% |
+| 0.5 to 1 | 1,124 | 1.6% | +0.11 | 67% |
+| 1 to 1.5 | 561 | 2.6% | +0.13 | 72% |
+| 1.5 to 2.5 | 356 | 3.9% | +0.21 | 78% |
+| 2.5 or more | 125 | 7.9% | +0.27 | 84% |
+
+4,102 days from 24 August 2009. Same-day returns: Oslo closes about six hours before Brent settles, so these understate
+slightly; with the two-day window of the event study the last row is unchanged at +0.27. It differs from the +0.28 of the
+out-of-sample test above in using every day at or above the threshold rather than de-clustered events.
+
 ## 3b. What kind of shock was it?
 
 Each event is labelled by the sign of the cumulative S&P 500 log return over the same [0,+1] window as the oil move
@@ -225,11 +258,15 @@ estimate is made here and nothing here feeds one.
 
 * **One window.** Every move is measured from Oslo Børs's previous close — the last index bar before the current
   session's 09:00. Brent's move over the *same* window starts the previous evening, which is the oil news Oslo prices at
-  the open. A stock that has not traded today reports its last print and a zero move.
-* **Predicted vs realised.** The page multiplies each unit's total oil beta (last 260 weeks, from the daily study) by
-  Brent's move and shows the result beside the realised move. A sector's realised move is the equal-weighted mean of its
-  members that have traded, matching how the sector betas were built. Intraday moves carry far more noise than the weekly
-  relationship, so the page presents a gap as the normal case.
+  the open. The window ends at the same moment too: Brent and USD/NOK trade on after Oslo has stopped, so the document
+  carries their move up to Oslo's latest bar (`change_oslo`) beside the live one (`change`), and the split of the stocks'
+  moves uses the former. A stock that has not traded today reports its last print and a zero move.
+* **What moved each unit.** The page splits every move into oil, the market beyond oil and own news (section 4a), using
+  betas, ranges and the yardstick table from the daily study; it draws the 80% range of own news around the expected move
+  and states how well the oil beta has ranked stocks on days of this size. It also reports two descriptive statistics of
+  the current cross-section: the rank correlation between oil's part and the realised moves, and how many stocks are
+  inside their range. A sector's realised move is the equal-weighted mean of its members that have traded, matching how
+  the sector betas were built. The range describes a full day, so early in a session it is too wide.
 * **Staleness.** The document records the latest bar and its age; during trading hours a bar older than 45 minutes marks
   the document stale. If the download fails, the previous document is re-published with `stale: true` and a reason,
   never a gap. Free Oslo Børs data is delayed 15 minutes by the exchange; the page states it.

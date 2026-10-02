@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from . import MARKET, OIL, data
-from .analysis import betas, events, krone, pca, regimes, robustness, scenarios, shocktype
+from .analysis import attribution, betas, events, krone, pca, regimes, robustness, scenarios, shocktype
 from .config import Config
 
 
@@ -89,6 +89,13 @@ def run(cfg: Config, refresh: bool = False, log=print, rolling_stocks: bool = Tr
     oos = scenarios.out_of_sample(frame_w, fac_w, cars, ev, cfg.tickers, s.window, s.oos_min_history)
     res.tables["oos_events"] = oos
     res.tables["oos_summary"] = scenarios.summarise_oos(oos)
+    # what those betas can say about a single day: an exact split of a move, and when the ranking works
+    res.tables["attribution"] = attribution.unit_inputs(frame_w, frame_d, meta, fac_w, fac_d, s.window, b.min_history)
+    rank_days = attribution.daily_rank_correlation(frame_w[cfg.tickers], frame_d[cfg.tickers], weekly[OIL], daily[OIL],
+                                                   s.window, s.oos_min_history, e.vol_window)
+    res.tables["signal_by_size"] = attribution.signal_by_size(rank_days)
+    res.info["attribution"] = attribution.summary(res.tables["attribution"], res.tables["signal_by_size"], rank_days,
+                                                  daily[OIL], e.vol_window)
 
     log("5/6  regimes: up/down and calm/turbulent oil betas")
     direction, volatility = regimes.regime_tables(frame_w, meta, fac_w, cfg.regimes.vol_window,

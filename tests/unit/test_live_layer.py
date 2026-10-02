@@ -67,6 +67,26 @@ def test_every_move_is_measured_from_oslos_previous_close(cfg, market):
     assert doc["usdnok"]["change"] == pytest.approx(10.6 / 10.5 - 1, abs=1e-5)   # rounded to five decimals
 
 
+def test_brents_move_for_the_split_stops_where_oslo_stopped(cfg, market):
+    during = quotes.build(cfg, market, now=datetime(2026, 9, 22, 10, 5, tzinfo=UTC))
+    b = during["brent"]
+    assert b["change_oslo"] == b["change"] and b["last_oslo"] == 99.0          # no later Brent bar yet: one and the same
+    assert b["last_oslo_at"] == "2026-09-22T09:45+00:00" == during["session"]["latest_bar"]
+    assert "change_oslo" not in during["index"] and "change_oslo" not in during["stocks"]["AAA.OL"]
+
+    # the evening after: Oslo's last bar is still 11:45, Brent has fallen back to 93 and USD/NOK has moved on
+    late = dict(market)
+    late[cfg.oil_ticker] = pd.concat([market[cfg.oil_ticker], oil_bars({"2026-09-22 16:00": 96, "2026-09-22 19:00": 93})])
+    late["NOK=X"] = pd.concat([market["NOK=X"], oil_bars({"2026-09-22 19:00": 10.4})])
+    evening = quotes.build(cfg, late, now=datetime(2026, 9, 22, 19, 30, tzinfo=UTC))
+    b, fx = evening["brent"], evening["usdnok"]
+    assert b["last"] == 93.0 and b["change"] == pytest.approx(93 / 90 - 1, abs=1e-5)       # the live move runs on
+    assert b["last_oslo"] == 99.0 and b["change_oslo"] == pytest.approx(0.1)               # the stocks saw +10%
+    assert b["last_oslo_at"] == "2026-09-22T09:45+00:00"
+    assert fx["change"] == pytest.approx(10.4 / 10.5 - 1, abs=1e-5) and fx["change_oslo"] == pytest.approx(10.6 / 10.5 - 1, abs=1e-5)
+    assert evening["stocks"]["AAA.OL"]["change"] == during["stocks"]["AAA.OL"]["change"]    # and the stocks did not move
+
+
 def test_a_stock_that_has_not_traded_today_keeps_yesterdays_print_and_no_change(cfg, market):
     doc = quotes.build(cfg, market, now=datetime(2026, 9, 22, 10, 5, tzinfo=UTC))
     ccc = doc["stocks"]["CCC.OL"]

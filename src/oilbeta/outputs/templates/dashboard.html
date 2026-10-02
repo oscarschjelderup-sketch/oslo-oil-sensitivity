@@ -70,6 +70,16 @@ select,input[type=search]{font:14px var(--sans);color:var(--ink);background:var(
 .legend i.grey{border-color:var(--muted)} .legend i.dot{width:10px;height:10px;border:0;border-radius:50%;background:var(--pos)}
 .legend i.ring{width:10px;height:10px;border:2px solid var(--neg);border-radius:50%;background:var(--surface)}
 .legend i.bandkey{height:9px;border:0;background:var(--band)}
+.legend i.tickkey{width:0;height:12px;border:0;border-left:2px solid var(--ink)}
+.row.attr{grid-template-columns:minmax(110px,190px) 1fr 58px 58px 58px 62px}
+.track .range{position:absolute;top:2px;height:14px;background:var(--band);border-radius:2px}
+.track .exp{position:absolute;top:1px;width:2px;height:16px;margin-left:-1px;background:var(--ink)}
+.row .num.out{font-weight:600}
+.signal{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.signal .cell{padding:10px 12px;background:var(--bg);border:1px solid var(--line)}
+.signal .cell .k{font-size:12px;color:var(--muted)}
+.signal .cell .v{font-family:var(--serif);font-size:20px;font-weight:600;line-height:1.25;font-variant-numeric:tabular-nums}
+.signal .cell .s{font-size:12px;color:var(--muted)}
 .chart{position:relative;width:100%}
 .chart svg{display:block;width:100%;height:auto;overflow:visible}
 .chart text{font:11.5px var(--sans);fill:var(--muted)}
@@ -97,6 +107,7 @@ footer{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padd
 @media (max-width:560px){
   .tvchart{height:260px}
   .row{grid-template-columns:minmax(84px,118px) 1fr 56px;font-size:12.5px}
+  .row.attr{grid-template-columns:minmax(78px,104px) 1fr 46px 52px;gap:8px}
   .row .p{display:none}
 }
 @media (prefers-reduced-motion:no-preference){.track .bar,.track .whisk{transition:left .12s ease-out,width .12s ease-out}}
@@ -129,14 +140,19 @@ footer{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padd
       <div class="tvchart" id="liveChart"><div class="empty" id="chartEmpty">Loading chart…</div></div>
       <p class="note" id="chartNote" style="margin-top:8px"></p>
     </div>
-    <h3 style="margin:8px 0 0">What the oil beta predicted, and what happened</h3>
+    <h3 style="margin:8px 0 0">What moved each stock: oil, the market, or its own news</h3>
     <div class="panel">
-      <div class="controls"><div class="seg" role="group" aria-label="Rows" id="todaySeg">
+      <div class="signal" id="todaySignal"></div>
+      <div class="controls" style="margin-top:12px"><div class="seg" role="group" aria-label="Rows" id="todaySeg">
         <button type="button" data-g="sectors" aria-pressed="true">Sectors</button>
-        <button type="button" data-g="movers" aria-pressed="false">Biggest movers</button></div></div>
+        <button type="button" data-g="oil" aria-pressed="false">Most oil-sensitive</button>
+        <button type="button" data-g="movers" aria-pressed="false">Biggest movers</button></div>
+        <span class="note" id="todayGroupNote"></span></div>
       <div class="rows" id="todayRows" style="margin-top:10px"></div>
-      <div class="legend" style="margin-top:10px"><span><i class="ring"></i>predicted: the unit's oil beta × Brent's move</span>
-        <span><i class="dot"></i>realised move since Oslo's previous close</span></div>
+      <div class="legend" style="margin-top:10px"><span><i class="ring"></i>oil alone: the oil beta × Brent's move</span>
+        <span><i class="tickkey"></i>expected, given Brent and the index</span>
+        <span><i class="bandkey"></i><span id="todayBandKey">where most days end</span></span>
+        <span><i class="dot"></i>realised since Oslo's previous close</span></div>
     </div>
     <p class="note" id="todayNote"></p>
   </section>
@@ -406,7 +422,7 @@ $("footMethod").textContent = "Method: r = α + β·index + β_oil·Brent on Fri
 (function links(){ const L = M.links || {}, host = $("footLinks"), keys = Object.keys(L); if (!keys.length) return; host.hidden = false;
   keys.forEach((k, i) => { if (i) host.appendChild(document.createTextNode(" · ")); const a = H("a", "", k, host); a.href = L[k]; a.style.color = "var(--pos)"; }); })();
 
-/* ---------- today: live quotes, candles, predicted vs realised ---------- */
+/* ---------- today: live quotes, candles, and what moved each unit ---------- */
 (function today(){
   const pill = $("todayPill"), stamp = $("todayStamp"), tickers = $("todayTickers"), rows = $("todayRows"), note = $("todayNote");
   const chartEl = $("liveChart"), empty = $("chartEmpty"), pick = $("chartPick"), sel = $("candleSel"), chartNote = $("chartNote");
@@ -498,38 +514,97 @@ $("footMethod").textContent = "Method: r = α + β·index + β_oil·Brent on Fri
     return Object.fromEntries(Object.entries(acc).map(([s, a]) => [s, {realised: a.reduce((p, c) => p + c, 0) / a.length, n: a.length}]));
   }
   const pct2 = x => x == null ? "–" : Math.abs(x) < 5e-5 ? "0.00%" : pct(x, 2);
+  const A = DATA.attribution || null, years = Math.round(M.scen_window / 52), cover = A ? Math.round(A.coverage * 100) : null;
+  const share = v => (v * 100).toFixed(v < 0.02 ? 1 : 0) + "%";
+  function ranks(a){                                     // average ranks, ties shared
+    const order = a.map((v, i) => [v, i]).sort((p, q) => p[0] - q[0]), r = new Array(a.length);
+    for (let i = 0; i < order.length;){ let j = i; while (j + 1 < order.length && order[j + 1][0] === order[i][0]) j++;
+      for (let k = i; k <= j; k++) r[order[k][1]] = (i + j) / 2 + 1; i = j + 1; }
+    return r; }
+  function spearman(a, b){
+    if (a.length < 5) return null;
+    const x = ranks(a), y = ranks(b), n = x.length, mean = (n + 1) / 2; let sxy = 0, sxx = 0, syy = 0;
+    for (let i = 0; i < n; i++){ sxy += (x[i] - mean) * (y[i] - mean); sxx += (x[i] - mean) ** 2; syy += (y[i] - mean) ** 2; }
+    return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : null; }
+  /* A move splits exactly, in log returns: oil + what the rest of the market did + the unit's own news.
+     Nothing is forecast here: Brent's and the index's moves are the ones that happened. */
+  function split(u, real, n, x, mk){
+    const oil = u.beta * x;
+    const market = u.kind === "market" || !A || mk == null || u.beta_mkt_now == null ? null : u.beta_mkt_now * (mk - A.gamma * x);
+    const e = oil + (market || 0), exp = Math.expm1(e);
+    const lo = u.own_lo == null ? null : Math.expm1(e + u.own_lo), hi = u.own_hi == null ? null : Math.expm1(e + u.own_hi);
+    return {name: u.name, kind: u.kind, beta: u.beta, n, real, oil: Math.expm1(oil), exp, lo, hi,
+            market: market == null ? null : exp - Math.expm1(oil), own: real - exp, inside: lo == null ? null : real >= lo && real <= hi};
+  }
+  function renderSignal(stockRows, x){
+    const host = $("todaySignal"); host.textContent = "";
+    if (!A || !A.oil_daily_vol || !A.signal || !A.signal.length) return;
+    const cell = (k, v, s) => { const c = H("div", "cell", null, host); H("div", "k", k, c); H("div", "v", v, c); H("div", "s", s, c); };
+    const z = Math.abs(x) / A.oil_daily_vol, shock = A.signal[A.signal.length - 1];
+    const bucket = A.signal.find(s => z >= s.lo && (s.hi == null || z < s.hi)) || shock;
+    const kind = z < 0.5 ? "a quiet oil day" : z < 1.5 ? "an ordinary oil day" : z < shock.lo ? "a large oil move" : "an oil shock";
+    cell("Size of the oil move", z.toFixed(1) + "σ: " + kind,
+         "Brent " + pct(brentMove(), 2) + ", against ±" + (A.oil_daily_vol * 100).toFixed(1) + "% for one standard deviation of its daily moves over the last year");
+    cell("On days this size the oil beta has ranked stocks the right way on", Math.round(bucket.share_positive * 100) + "% of days",
+         "mean rank correlation " + signed(bucket.mean_rank_corr) + " over " + bucket.n_days.toLocaleString("en-GB") + " days since " + A.signal_since.slice(0, 4) +
+         (bucket === shock ? "" : "; on shock days (" + shock.lo + "σ or more) " + Math.round(shock.share_positive * 100) + "% and " + signed(shock.mean_rank_corr)));
+    const rho = x === 0 ? null : spearman(stockRows.map(r => r.oil), stockRows.map(r => r.real));
+    const banded = stockRows.filter(r => r.inside != null), inside = banded.filter(r => r.inside).length;
+    cell(Q.session.market_open ? "Today so far" : "Session of " + dfmt(Q.session.date), rho == null ? "–" : "rank correlation " + signed(rho),
+         banded.length ? inside + " of " + banded.length + " stocks (" + Math.round(100 * inside / banded.length) + "%) are inside their " + cover + "% range" : "");
+  }
+  /* Brent trades on after Oslo has stopped. The split needs the move the stocks could react to:
+     up to Oslo's latest bar (change_oslo), not Brent's own latest price. */
+  const brentMove = () => { const b = Q.brent || {}; return b.change_oslo != null ? b.change_oslo : b.change != null ? b.change : 0; };
   function renderRows(){
-    const x = Math.log(1 + (Q.brent && Q.brent.change != null ? Q.brent.change : 0));
-    const predict = u => ({pred: Math.expm1(u.beta * x), lo: Math.expm1(Math.min(u.lo, u.hi) * x), hi: Math.expm1(Math.max(u.lo, u.hi) * x)});
-    let list;
+    const x = Math.log(1 + brentMove());
+    const mk = Q.index && Q.index.change != null ? Math.log(1 + Q.index.change) : null;
+    const stockRows = U.filter(u => u.kind === "stock" && Q.stocks[u.id] && Q.stocks[u.id].change != null).map(u => split(u, Q.stocks[u.id].change, null, x, mk));
+    let list, groupNote = "";
     if (group === "sectors"){
       const sec = realisedBySector();
       list = U.filter(u => u.kind !== "stock").map(u => { const r = u.kind === "market" ? {realised: Q.index ? Q.index.change : null, n: null} : sec[u.id];
-        return Object.assign({name: u.name, kind: u.kind, n: r && r.n, real: r ? r.realised : null}, predict(u)); });
+        return r && r.realised != null ? split(u, r.realised, r.n, x, mk) : null; }).filter(Boolean).sort((a, b) => b.beta - a.beta);
+    } else if (group === "oil"){
+      list = stockRows.slice().sort((a, b) => b.beta - a.beta).slice(0, 12);
+      groupNote = "The 12 stocks with the highest oil beta: where oil's part should show.";
     } else {
-      list = U.filter(u => u.kind === "stock" && Q.stocks[u.id] && Q.stocks[u.id].change != null)
-        .map(u => Object.assign({name: u.name, kind: "stock", real: Q.stocks[u.id].change}, predict(u)))
-        .sort((a, b) => Math.abs(b.real) - Math.abs(a.real)).slice(0, 12);
+      list = stockRows.slice().sort((a, b) => Math.abs(b.real) - Math.abs(a.real)).slice(0, 12).sort((a, b) => b.real - a.real);
+      groupNote = "The 12 largest moves. By construction these are the stocks with the most news of their own, so oil's part is small.";
     }
-    list = list.filter(r => r.real != null).sort((a, b) => b.pred - a.pred);
-    let dom = 0.005; list.forEach(r => { dom = Math.max(dom, Math.abs(r.pred), Math.abs(r.real)); }); dom *= 1.12;
+    $("todayGroupNote").textContent = groupNote;
+    let dom = 0.005; list.forEach(r => { dom = Math.max(dom, Math.abs(r.oil), Math.abs(r.exp), Math.abs(r.real), Math.abs(r.lo || 0), Math.abs(r.hi || 0)); }); dom *= 1.1;
     const P = v => 50 + 50 * v / dom;
     rows.textContent = "";
-    const head = H("div", "row rowhead", null, rows); H("div", "name", "", head); H("div", "", "", head); H("div", "num", "Predicted", head); H("div", "num p", "Realised", head);
+    const head = H("div", "row attr rowhead", null, rows); H("div", "name", "", head); H("div", "", "", head);
+    H("div", "num", "Oil", head); H("div", "num p", "Market", head); H("div", "num p", "Own", head); H("div", "num", "Realised", head);
     list.forEach(r => {
-      const row = H("div", "row", null, rows); row.tabIndex = 0;
+      const row = H("div", "row attr", null, rows); row.tabIndex = 0;
       H("div", "name" + (r.kind === "market" ? " strong" : ""), r.name, row);
-      const tr = H("div", "track", null, row); H("div", "zero", null, tr).style.left = "50%";
-      const lk = H("div", "link", null, tr); lk.style.left = Math.min(P(r.pred), P(r.real)) + "%"; lk.style.width = Math.abs(P(r.pred) - P(r.real)) + "%";
-      H("div", "mark hollow", null, tr).style.left = P(r.pred) + "%"; H("div", "mark", null, tr).style.left = P(r.real) + "%";
-      H("div", "num dim", pct2(r.pred), row); H("div", "num p", pct2(r.real), row);
-      row.title = r.name + ": predicted " + pct2(r.pred) + " (" + pct2(r.lo) + " to " + pct2(r.hi) + "), realised " + pct2(r.real) + (r.n ? " across " + r.n + " stocks" : "");
+      const tr = H("div", "track", null, row);
+      if (r.lo != null){ const band = H("div", "range", null, tr); band.style.left = P(r.lo) + "%"; band.style.width = (P(r.hi) - P(r.lo)) + "%"; }
+      H("div", "zero", null, tr).style.left = "50%";
+      const lk = H("div", "link", null, tr); lk.style.left = Math.min(P(r.exp), P(r.real)) + "%"; lk.style.width = Math.abs(P(r.exp) - P(r.real)) + "%";
+      H("div", "exp", null, tr).style.left = P(r.exp) + "%";
+      H("div", "mark hollow", null, tr).style.left = P(r.oil) + "%"; H("div", "mark", null, tr).style.left = P(r.real) + "%";
+      H("div", "num dim", pct2(r.oil), row); H("div", "num dim p", r.market == null ? "–" : pct2(r.market), row);
+      H("div", "num p" + (r.inside === false ? " out" : " dim"), pct2(r.own), row); H("div", "num", pct2(r.real), row);
+      row.title = r.name + ": realised " + pct2(r.real) + (r.n ? " across " + r.n + " stocks" : "") + ". Oil " + pct2(r.oil) + " (oil beta " + num(r.beta) + ")" +
+        (r.market == null ? "" : ", market " + pct2(r.market)) + ", own " + pct2(r.own) + "." +
+        (r.lo == null ? "" : " " + cover + "% range " + pct2(r.lo) + " to " + pct2(r.hi) + ": " + (r.inside ? "inside." : "outside."));
     });
-    const b = Q.brent, idx = INDEX;
-    note.textContent = "Brent " + pct(b.change, 2) + " since Oslo's previous close (" + oslo(b.prev_close_at) + "). Predicted = each unit's total oil beta from the last " +
-      Math.round(M.scen_window / 52) + " years of weekly returns, applied to that move; for the index that is " + num(idx.beta) + " × Brent. " +
-      "Intraday moves are far noisier than the weekly relationship — oil explains " + Math.round((byId["Exploration & production"] || idx).r2_oil * 100) +
-      "% of weekly variance for E&P and about none for a bank — so a gap between the two marks is the normal case, not a failure. " +
+    renderSignal(stockRows, x);
+    const b = Q.brent;
+    if ($("todayBandKey") && cover) $("todayBandKey").textContent = cover + "% of days end in this range";
+    const movedOn = b.change_oslo != null && b.change != null && Math.abs(b.change - b.change_oslo) > 0.0005;
+    note.textContent = "Brent " + pct(brentMove(), 2) + (Q.index && Q.index.change != null ? " and the index " + pct(Q.index.change, 2) : "") +
+      " from Oslo's previous close (" + oslo(b.prev_close_at) + ") to Oslo's latest bar (" + oslo(Q.session.latest_bar) + ")" +
+      (movedOn ? "; Brent has since moved on to " + pct(b.change, 2) + ", which Oslo has not traded on yet" : "") +
+      ". Each move is split exactly. Oil: the unit's total oil beta, from the last " + years +
+      " years of weekly returns, times Brent's move. " + (A ? "Market: its index beta times the part of the index's move that oil does not explain (the index's own oil beta is " +
+      num(A.gamma) + "). Own: the rest. For the typical stock oil accounts for " + share(A.median_r2_oil) + " of weekly variance and oil plus the index for " + share(A.median_r2_two) +
+      ", so most of any single day is the company's own news. The ring is oil's part of the move, never a forecast of the day. The shaded range is where the unit ended on " + cover +
+      "% of trading days in the last " + years + " years, given the oil and index moves; it is a full day's range, so early in the session it is too wide. " : "") +
       "Sector moves are equal-weighted across the members that have traded. Prices 15-minute delayed, refreshed every 15 minutes in trading hours.";
   }
   $("todaySeg").addEventListener("click", ev => { const b = ev.target.closest("button"); if (!b) return; group = b.dataset.g;
@@ -547,6 +622,7 @@ $("footMethod").textContent = "Method: r = α + β·index + β_oil·Brent on Fri
       pill.className = "pill off"; pill.textContent = "Live quotes unavailable";
       stamp.textContent = "This copy cannot reach the quotes feed (offline, or opened from disk). Everything below is the daily study.";
       empty.textContent = "Live chart needs the quotes feed."; tickers.textContent = ""; rows.textContent = ""; note.textContent = "";
+      $("todaySignal").textContent = ""; $("todayGroupNote").textContent = "";
       return;
     }
     Q = fresh;

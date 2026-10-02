@@ -84,6 +84,17 @@ def _findings(res: Results) -> list[str]:
             f"against {r.loc[rb.BASELINE, 'index_beta']:.2f}, and stocks rank the same (rank correlation "
             f"{r.loc[rb.SPOT, 'rank_corr_with_baseline']:.2f}). Starting in 2005 instead of 2007, two-year windows that end "
             f"before the autumn-2008 crash average {pre:.2f}; windows ending 2009-2013 average {crisis:.2f}. {reading}")
+    if "signal_by_size" in T:
+        sg, a = T["signal_by_size"], res.info["attribution"]
+        quiet, shock = sg.iloc[0], sg.iloc[-1]
+        findings.append(
+            f"<b>The oil beta explains a shock, not a day.</b> For the typical stock oil accounts for "
+            f"{a['median_r2_oil']:.1%} of weekly variance and oil plus the index for {a['median_r2_two']:.0%}; the rest is the "
+            f"company's own news, which on {a['coverage']:.0%} of days moves the stock between {a['median_own_lo']:+.1%} and "
+            f"{a['median_own_hi']:+.1%}. Betas known beforehand rank stocks the right way on {quiet['share_positive']:.0%} of the "
+            f"days when Brent moves less than {quiet['hi']:g} standard deviations (mean rank correlation "
+            f"{quiet['mean_rank_corr']:+.2f}) and on {shock['share_positive']:.0%} of the days it moves {shock['lo']:g} or more "
+            f"({shock['mean_rank_corr']:+.2f}), across {a['signal_days']:,} trading days.")
     if "krone_channel" in T:
         k = res.info["krone"]
         g = k["krone_oil_beta"]
@@ -168,6 +179,16 @@ def _robustness_table(res: Results) -> str:
     return _fmt_table(t, formats, rename)
 
 
+def _signal_table(res: Results) -> str:
+    t = res.tables["signal_by_size"].copy()
+    t["size"] = [f"under {r['hi']:g}σ" if r["lo"] == 0 else f"{r['lo']:g}σ or more" if pd.isna(r["hi"]) else
+                 f"{r['lo']:g} to {r['hi']:g}σ" for _, r in t.iterrows()]
+    formats = {"size": "", "n_days": "{:,.0f}", "mean_abs_oil": "{:.1%}", "mean_rank_corr": "{:+.2f}", "share_positive": "{:.0%}"}
+    rename = {"size": "Size of the Brent move", "n_days": "Trading days", "mean_abs_oil": "Typical move",
+              "mean_rank_corr": "Mean rank correlation", "share_positive": "Ranked the right way"}
+    return _fmt_table(t, formats, rename)
+
+
 def _krone_table(res: Results) -> str:
     t = res.tables["krone_channel"]
     t = t[t["kind"] != "stock"].sort_values("beta_oil_total", ascending=False).copy()
@@ -221,5 +242,6 @@ def write_html(res: Results, figure_paths: dict[str, Path], out_path: Path) -> N
         robustness_table=_robustness_table(res) if "robustness_oil_series" in T else None,
         agreement=res.info.get("robustness"),
         krone_table=_krone_table(res) if "krone_channel" in T else None, krone=res.info.get("krone"),
+        signal_table=_signal_table(res) if "signal_by_size" in T else None, att=res.info.get("attribution"),
     )
     out_path.write_text(html, encoding="utf-8")

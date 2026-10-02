@@ -15,3 +15,4 @@ decided, why, and what was given up.
 | [8](0008-second-price-source.md) | Add a second price source as a check, not as an input |
 | [9](0009-live-layer-that-estimates-nothing.md) | A 15-minute live layer that estimates nothing |
 | [10](0010-krone-measured-not-adopted.md) | USD/NOK as a third factor: measured, not adopted |
+| [11](0011-a-split-with-a-range-not-a-forecast.md) | The Today panel shows a split with a range, not a forecast |

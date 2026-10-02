@@ -64,6 +64,12 @@ The full write-up is the [research report](https://oscarschjelderup-sketch.githu
    krone part is 0.03 of the index's 0.29, at most 0.03 for any sector, and no sector's partial beta moves by more than
    0.02. Where the krone does matter it works *against* the oil beta: the dollar-earning tanker and container owners
    (Frontline, MPC Container Ships, Okeanis, Hafnia) gain when the krone weakens, which is when oil falls.
+8. **The oil beta explains a shock, not a day.** For the typical stock oil accounts for 1.3% of weekly variance and oil
+   plus the index for 15%; the rest is the company's own news, which moves it between −2.1% and +2.2% on 80% of days.
+   Betas known beforehand rank stocks the right way on 54% of the days Brent moves less than half a standard deviation
+   (mean rank correlation +0.03) and on 84% of the days it moves 2.5 or more (+0.27), rising steadily in between across
+   4,102 trading days. So the monitor does not present oil's part as a forecast of a stock's day: it splits each move
+   into oil, the market beyond oil and own news, and draws the range in which most days end.
 
 ## Two modes: a pinned paper and a live monitor
 
@@ -83,9 +89,10 @@ sum. If the download fails, the last good snapshot is served and the page says s
 On top of that sits a **15-minute live layer** ([decision 9](docs/decisions/0009-live-layer-that-estimates-nothing.md)):
 `oilbeta quotes` fetches intraday bars for Brent, the index, USD/NOK and all 63 stocks, and the page shows the current
 session — candlestick charts drawn with [TradingView's Lightweight Charts](https://github.com/tradingview/lightweight-charts),
-today's moves since Oslo's previous close, and what each sector's oil beta *predicted* for today's Brent move next to
-what actually happened. It estimates nothing: the betas are still weekly and still daily. Prices are 15-minute delayed
-(an exchange rule for free data), and the page says so.
+today's moves since Oslo's previous close, and each move split into oil, the market beyond oil and the unit's own news,
+with the range in which the unit ends on 80% of days and a line saying how much the oil beta can tell on a day of this
+size ([decision 11](docs/decisions/0011-a-split-with-a-range-not-a-forecast.md)). It estimates nothing: the betas are
+still weekly and still daily. Prices are 15-minute delayed (an exchange rule for free data), and the page says so.
 
 ### How it runs
 
@@ -144,6 +151,7 @@ flowchart LR
 | 6 PCA | Do returns alone reveal an oil factor? | PCA on the cross-section of weekly returns (not on engineered columns) |
 | + Shock types | Is this the effect of oil, or of the news that moved oil? | Each shock labelled demand-type or supply-type by the sign of the S&P 500 move over the same two days; separate shock betas, an equality test, and a version that holds the world move fixed |
 | + Robustness | Does the answer depend on the vendor or on where the sample starts? | The whole beta step re-run with Brent spot from FRED, and with stock prices from 2005 |
+| + One day | What can the betas say about a single day? | An exact split of a move into oil, the market beyond oil and own news; the 80% range of own news; out-of-sample rank correlation between past betas and the day's returns, by the size of the Brent move |
 | + Krone | Is it the commodity or the currency? | USD/NOK as a third factor splits every total oil beta exactly into direct, through-the-index and through-the-krone parts; the headline model stays two-factor |
 
 Across units, p-values come with Benjamini-Hochberg q-values: with 63 stocks, a 5% test alone produces about three
@@ -177,7 +185,7 @@ oilbeta quotes              # 15-minute quotes for the "Today" panel -> live/quo
 oilbeta fetch               # data snapshot + validation report only
 oilbeta stock NAS.OL        # one stock, including tickers outside the configured universe
 oilbeta stock EQNR.OL --json oil/EQNR.OL.json   # the same, as a factsheet another tool can read
-pytest tests/unit           # 86 fast tests (~15 s); plain `pytest` adds the two golden tests (~1 min)
+pytest tests/unit           # 94 fast tests (~20 s); plain `pytest` adds the two golden tests (~1 min)
 ruff check .                # lint
 ```
 
@@ -203,10 +211,13 @@ reason). Unknown keys, impossible windows, a ticker in two sectors or a data fix
   median; out-of-sample betas use only weeks that ended before each event. Each has a test that tampers with the
   future and checks the past does not change.
 - **The numbers are locked twice.** `uv.lock` pins every dependency, and two golden tests pin the results: one re-runs
-  the study on the pinned snapshot and compares 23 headline numbers with the README (wherever the raw prices exist),
+  the study on the pinned snapshot and compares 24 headline numbers with the README (wherever the raw prices exist),
   the other pushes a seeded synthetic market through the whole chain, report and dashboard included, on every push.
   A refactor cannot move a number without a test going red.
 - **Null results are reported.** The drift test and the volatility-regime split find nothing, and the report shows them.
+- **A split with a range, not a forecast.** The first live panel put "predicted" next to "realised", and on a quiet oil
+  day every prediction looked wrong. The number was only oil's share of the move. The panel now splits each move
+  exactly, draws the range of the unit's own news, and states how often the ranking has worked on days of this size.
 
 ## What this study cannot tell you
 
@@ -236,7 +247,7 @@ src/oilbeta/
   config.py                pydantic models: the three files are validated before anything runs
   data/                    sources.py (Yahoo, FRED) · snapshot.py (cache, manifest) · align.py · validate.py · intraday.py
   stats/                   ols.py · hac.py · multiple.py: numpy only, arrays in and numbers out
-  analysis/                betas · events · shocktype · scenarios · regimes · pca · robustness · krone
+  analysis/                betas · events · shocktype · scenarios · attribution · regimes · pca · robustness · krone
   outputs/                 tables · figures · report · dashboard · factsheet · quotes · candles · templates/
   pipeline.py  cli.py      the six steps in order, and the `oilbeta` command
 tests/
@@ -244,7 +255,7 @@ tests/
   integration/             golden tests: the pinned snapshot's numbers, and a synthetic market end to end
 docs/
   methodology.md           every formula and parameter
-  decisions/               ten short notes on why it is built this way
+  decisions/               eleven short notes on why it is built this way
 .github/workflows/         ci.yml (lint + tests) · live-monitor.yml (daily rebuild + GitHub Pages) · quotes.yml (15-minute quotes)
 scripts/update_live.ps1    optional local refresh
 uv.lock                    locked environment

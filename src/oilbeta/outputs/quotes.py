@@ -3,10 +3,12 @@
 One question, answered consistently for every series: *how far has it moved since Oslo Børs
 last closed?* That is the window over which the page compares Brent's move with each sector's
 move, so both sides are measured over the same hours. Brent trades almost around the clock,
-so its "since Oslo close" move can start on the previous evening; the page says so.
+so its "since Oslo close" move can start on the previous evening; the page says so. The window
+must also *end* at the same time: once Oslo has stopped for the day Brent trades on, so the
+document carries Brent's move up to Oslo's latest bar (`change_oslo`) next to its live move.
 
 The document carries prices, times and a staleness flag - nothing estimated. The betas that
-turn a Brent move into a predicted stock move come from the daily study; the page joins the two.
+turn a Brent move into oil's part of a stock's move come from the daily study; the page joins the two.
 """
 from __future__ import annotations
 
@@ -85,7 +87,8 @@ def build(cfg: Config, intraday: dict[str, pd.DataFrame], now: datetime | None =
     age_minutes = (now - latest_bar.to_pydatetime()).total_seconds() / 60
     stale = market_open and age_minutes > STALE_AFTER_MINUTES
 
-    def snapshot(ticker: str, frame: pd.DataFrame | None, bars: int | None = None, name: str | None = None) -> dict | None:
+    def snapshot(ticker: str, frame: pd.DataFrame | None, bars: int | None = None, name: str | None = None,
+                 trades_after_oslo: bool = False) -> dict | None:
         if frame is None or frame.empty:
             return None
         last_close, last_at = float(frame["Close"].iloc[-1]), frame.index[-1]
@@ -96,6 +99,13 @@ def build(cfg: Config, intraday: dict[str, pd.DataFrame], now: datetime | None =
                "prev_close": round(prev, 4) if prev else None,
                "prev_close_at": prev_at.isoformat(timespec="minutes") if prev_at is not None else None,
                "change": round(change, 5) if change is not None else None}
+        if trades_after_oslo:
+            # Brent and USD/NOK keep trading when Oslo has stopped. `change` runs to their own latest bar;
+            # `change_oslo` stops at Oslo's latest bar, which is the move the stocks could react to.
+            at_oslo, at_oslo_at = _last_close_before(frame, latest_bar)
+            doc["last_oslo"] = round(at_oslo, 4) if at_oslo else None
+            doc["last_oslo_at"] = at_oslo_at.isoformat(timespec="minutes") if at_oslo_at is not None else None
+            doc["change_oslo"] = round(at_oslo / prev - 1, 5) if at_oslo and prev else None
         if bars:
             session_bars = frame.loc[frame.index >= session_start]
             doc["session_high"] = round(float(session_bars["High"].max()), 4) if len(session_bars) else None
@@ -118,12 +128,13 @@ def build(cfg: Config, intraday: dict[str, pd.DataFrame], now: datetime | None =
             "hours": f"{OPEN:%H:%M}-{CLOSE:%H:%M}",
             "latest_bar": latest_bar.isoformat(timespec="minutes"),
             "age_minutes": round(age_minutes, 1), "stale": bool(stale),
-            "note": "Moves are measured from Oslo Børs's previous close. Brent trades almost around the clock, so its "
-                    "move over the same window starts the previous evening.",
+            "note": "Moves are measured from Oslo Børs's previous close. Brent and USD/NOK trade almost around the "
+                    "clock: their move starts the previous evening, `change` runs to their own latest bar and "
+                    "`change_oslo` stops at Oslo's latest bar, the same window as the stocks.",
         },
-        "brent": snapshot(oil_t, intraday.get(oil_t), bars=400, name=cfg.study.factors.oil.name),
+        "brent": snapshot(oil_t, intraday.get(oil_t), bars=400, name=cfg.study.factors.oil.name, trades_after_oslo=True),
         "index": snapshot(index_t, index, bars=400, name=cfg.market.name),
-        "usdnok": snapshot(fx_t, intraday.get(fx_t), bars=400, name="USD/NOK") if fx_t else None,
+        "usdnok": snapshot(fx_t, intraday.get(fx_t), bars=400, name="USD/NOK", trades_after_oslo=True) if fx_t else None,
         "stocks": stocks,
         "coverage": {"stocks_with_quotes": len(stocks), "stocks_in_universe": len(cfg.tickers)},
     }

@@ -45,9 +45,11 @@ def _pct_change(series: pd.Series, days: int) -> float | None:
 
 def _units(res: Results) -> list[dict]:
     sc, full, roll = res.tables["scenarios"], res.tables["betas_full"], res.tables["betas_rolling"]
+    att = res.tables.get("attribution")
     out = []
     for unit, row in sc.iterrows():
         r = roll.loc[roll["unit"] == unit, "beta_oil_total"]
+        a = att.loc[unit] if att is not None and unit in att.index else {}
         out.append({
             "id": unit, "name": INDEX_NAME if unit == MARKET else row["name"], "kind": row["kind"],
             "sector": row["sector"] if row["kind"] == "stock" else "",
@@ -57,8 +59,22 @@ def _units(res: Results) -> list[dict]:
             "roll_now": _clean(r.iloc[-1]) if len(r) else None,
             "roll_13w": _clean(r.iloc[-14]) if len(r) > 13 else None,
             "r2_oil": _clean(row["r2_oil_only"]), "non_oil_vol": _clean(row["non_oil_vol"]),
+            # for the split of today's move: the same window as `beta`, and the one-day range of the unit's own news
+            "beta_mkt_now": _clean(a.get("beta_mkt")), "r2_two": _clean(a.get("r2_two")),
+            "own_lo": _clean(a.get("own_lo")), "own_hi": _clean(a.get("own_hi")),
         })
     return out
+
+
+def _attribution(res: Results) -> dict | None:
+    """What the page needs to split a move and to say how much the oil beta can tell on a day of a given size."""
+    a = res.info.get("attribution")
+    if not a:
+        return None
+    return {"coverage": a["coverage"], "gamma": _clean(a["gamma"]), "oil_daily_vol": _clean(a["oil_daily_vol"]),
+            "median_r2_oil": _clean(a["median_r2_oil"]), "median_r2_two": _clean(a["median_r2_two"]),
+            "signal_days": a["signal_days"], "signal_since": a["signal_since"],
+            "signal": [{k: _clean(v) for k, v in row.items()} for row in a["signal"]]}
 
 
 def _rolling(res: Results, unit_ids: list[str]) -> dict:
@@ -151,6 +167,7 @@ def build_payload(res: Results) -> dict:
         "regime": {"state": "turbulent" if high.iloc[-1] == 1 else "calm", "vol_now": _clean(vol.iloc[-1]),
                    "vol_median": _clean(vol.expanding(min_periods=52).median().iloc[-1]), "last_shock": last_shock},
         "units": units,
+        "attribution": _attribution(res),
         "rolling": _rolling(res, [u["id"] for u in units]),
         "shocks": _shocks(res),
         "oos": {"n": int(oos.loc["spearman_impact", "n_events"]), "mean": _clean(oos.loc["spearman_impact", "mean"]),

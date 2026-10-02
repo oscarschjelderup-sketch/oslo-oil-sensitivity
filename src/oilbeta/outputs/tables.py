@@ -21,6 +21,8 @@ EXCEL_SHEETS = {
     "events": "Oil shocks",
     "oos_summary": "Out-of-sample summary",
     "oos_events": "Out-of-sample by event",
+    "signal_by_size": "Signal by oil-move size",
+    "attribution": "Attribution inputs",
     "regime_direction": "Regime up vs down",
     "regime_volatility": "Regime calm vs turbulent",
     "pca_summary": "PCA summary",

@@ -111,6 +111,24 @@ past shocks; it does not forecast the next one.</p>
 <img src="{{ fig['07_out_of_sample'] }}" alt="Out-of-sample test">
 <p class="note">For each shock, betas are re-estimated using only weeks that ended before it. Top-minus-bottom tercile spread on the shock
 days: {{ spread_impact }} (t = {{ spread_impact_t }}); in the following days: {{ spread_drift }} (t = {{ spread_drift_t }}).</p>
+{% if signal_table %}
+<h3>When does the oil beta carry information?</h3>
+<p>The test above looks at shock days only. The same question can be asked of every trading day: with betas estimated only on
+weeks that ended before the week began, how well does the ranking of stocks by oil beta match the ranking of their returns that
+day? The answer depends almost entirely on how far Brent moved.</p>
+<div class="scroll">{{ signal_table }}</div>
+<p class="note">{{ "{:,}".format(att.signal_days) }} trading days from {{ att.signal_since }}, same-day returns, at least 15 stocks
+a day. Size is the Brent move in trailing standard deviations (250 days, up to the day before); the last row is the shock rule of
+Step 3. "Ranked the right way" is the share of days with a positive rank correlation. Oslo closes about six hours before Brent
+settles, so same-day figures understate slightly.</p>
+<p>This is why one quiet day says nothing about the betas. For the typical stock oil accounts for
+{{ "{:.1%}".format(att.median_r2_oil) }} of weekly variance and oil plus the index for {{ "{:.0%}".format(att.median_r2_two) }}; the
+rest is the company's own news, which moves it between {{ "{:+.1%}".format(att.median_own_lo) }} and
+{{ "{:+.1%}".format(att.median_own_hi) }} on {{ "{:.0%}".format(att.coverage) }} of days. A stock's day therefore splits exactly into
+three parts: oil (its total oil beta times Brent's move), the market beyond oil (its index beta times the part of the index's move
+that oil does not explain) and its own news. The live monitor shows that split for the current session next to the range of each
+unit's own news, instead of presenting the oil part as a forecast of the day.</p>
+{% endif %}
 
 <div class="step" style="margin-top:50px">Step 5</div>
 <h2 style="margin-top:4px">Regimes</h2>

@@ -33,7 +33,7 @@ PINNED = {
     "eqnr_total": 0.465176, "eqnr_partial": 0.242424, "nas_partial": -0.318514, "dnb_total": 0.284842,
     "shock_beta_ep": 0.550700, "oos_spearman_impact": 0.280400, "oos_t": 10.509944, "oos_spearman_drift": -0.011662,
     "index_beta_down": 0.369631, "index_beta_up": 0.186181, "pc1_share": 0.280381, "scenario_ep_10": 0.052953,
-    "index_via_krone": 0.029820,
+    "index_via_krone": 0.029820, "signal_shock_days": 0.274178,
 }
 PINNED_COUNTS = {"n_events": 69, "n_up": 22, "oos_n": 63, "n_sig_partial": 16, "weeks": 997, "trading_days": 4610}
 
@@ -54,6 +54,7 @@ def headline(res) -> tuple[dict, dict]:
         "pc1_share": T["pca_summary"].loc["PC1", "variance_share"],
         "scenario_ep_10": T["scenarios"].loc["Exploration & production", "exp_+10%"],
         "index_via_krone": res.info["krone"]["index_via_krone"],
+        "signal_shock_days": T["signal_by_size"]["mean_rank_corr"].iloc[-1],
     }
     counts = {
         "n_events": len(ev), "n_up": int((ev["direction"] == "up").sum()),
@@ -126,6 +127,7 @@ SYNTHETIC = {
     "oos_t": 24.550218, "oos_spearman_drift": -0.022269, "index_beta_down": 0.230227,
     "index_beta_up": 0.341982, "pc1_share": 0.467828, "scenario_ep_10": 0.083170,
     "index_via_krone": -0.000020,                                      # the synthetic krone has no oil beta
+    "signal_shock_days": 0.755938,
 }
 SYNTHETIC_COUNTS = {"n_events": 48, "n_up": 24, "oos_n": 42, "n_sig_partial": 8, "weeks": 469, "trading_days": 2348}
 
@@ -159,7 +161,13 @@ def test_end_to_end_on_a_synthetic_market(tmp_path):
     assert len(res.tables["shock_betas_by_type"]) == 21 and "q_diff" in res.tables["shock_betas_by_type"]
     assert (res.tables["betas_full"]["total_q"] >= res.tables["betas_full"]["total_p"] - 1e-12).all()
     assert "robustness_oil_series" not in res.tables                 # no network in this test
-    assert pd.ExcelFile(paths["workbook"]).sheet_names[0] == "Betas (full sample)"
+    sheets = pd.ExcelFile(paths["workbook"]).sheet_names
+    assert sheets[0] == "Betas (full sample)" and {"Attribution inputs", "Signal by oil-move size"} <= set(sheets)
+    # the page can split a move and say how much the oil beta tells on a day of a given size
+    att = payload["attribution"]
+    assert [s["label"] for s in att["signal"]] == ["under 0.5", "0.5 to 1", "1 to 1.5", "1.5 to 2.5", "2.5 or more"]
+    assert att["signal"][-1]["mean_rank_corr"] > att["signal"][0]["mean_rank_corr"] and att["coverage"] == 0.8
+    assert all(u["own_lo"] < 0 < u["own_hi"] and u["beta_mkt_now"] is not None for u in payload["units"])
 
     # 3. and the numbers are exactly the ones this code produced when the test was written
     numbers, counts = headline(res)
