@@ -95,6 +95,9 @@ today's moves since Oslo's previous close, and each move split into oil, the mar
 with the range in which the unit ends on 80% of days and a line saying how much the oil beta can tell on a day of this
 size ([decision 11](docs/decisions/0011-a-split-with-a-range-not-a-forecast.md)). It estimates nothing: the betas are
 still weekly and still daily. Prices are 15-minute delayed (an exchange rule for free data), and the page says so.
+Moves are measured between *official* closing prices: the 15-minute bars leave out the closing auction, which put the
+median stock's daily move off by a quarter of a percent, and a quote is never replaced by an older one
+([decision 12](docs/decisions/0012-the-official-close-and-quotes-that-never-go-back.md)).
 
 ### How it runs
 
@@ -108,7 +111,7 @@ GitHub Actions is the run model; nothing has to be switched on anywhere.
 - [quotes.yml](.github/workflows/quotes.yml) keeps the 15-minute layer fresh. GitHub runs schedules on a best-effort
   basis — measured here, the daily 05:30 UTC job started 4 h 39 min late and a `*/15` schedule did not fire once in its
   first morning — so a cron cannot hold a 15-minute rhythm. Instead one run loops: it fetches, sleeps until the next tick
-  (one minute after each quarter-hour, 09:01–16:46 Oslo time), fetches again, and five hours in queues its successor
+  (one minute after each quarter-hour, 09:01–17:01 Oslo time), fetches again, and five hours in queues its successor
   with `workflow_dispatch`, which waits in the concurrency group and takes over the moment the run ends, inside
   GitHub's 6-hour job limit. The dispatch is retried at every tick: GitHub's API has answered HTTP 500 to it once.
   Several early schedules act only as kick-starts; a concurrency group keeps exactly one loop alive. Each refresh force-pushes `quotes.json` as a
@@ -187,7 +190,7 @@ oilbeta quotes              # 15-minute quotes for the "Today" panel -> live/quo
 oilbeta fetch               # data snapshot + validation report only
 oilbeta stock NAS.OL        # one stock, including tickers outside the configured universe
 oilbeta stock EQNR.OL --json oil/EQNR.OL.json   # the same, as a factsheet another tool can read
-pytest tests/unit           # 94 fast tests (~20 s); plain `pytest` adds the two golden tests (~1 min)
+pytest tests/unit           # 98 fast tests (~20 s); plain `pytest` adds the two golden tests (~1 min)
 ruff check .                # lint
 ```
 
@@ -257,7 +260,7 @@ tests/
   integration/             golden tests: the pinned snapshot's numbers, and a synthetic market end to end
 docs/
   methodology.md           every formula and parameter
-  decisions/               eleven short notes on why it is built this way
+  decisions/               twelve short notes on why it is built this way
 .github/workflows/         ci.yml (lint + tests) · live-monitor.yml (daily rebuild + GitHub Pages) · quotes.yml (15-minute quotes)
 scripts/update_live.ps1    optional local refresh
 uv.lock                    locked environment

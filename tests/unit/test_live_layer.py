@@ -87,12 +87,106 @@ def test_brents_move_for_the_split_stops_where_oslo_stopped(cfg, market):
     assert evening["stocks"]["AAA.OL"]["change"] == during["stocks"]["AAA.OL"]["change"]    # and the stocks did not move
 
 
+def daily_bars(closes_by_day: dict[str, float]) -> pd.DataFrame:
+    """Daily bars as the vendor returns them: one row per session, stamped at UTC midnight."""
+    idx = pd.DatetimeIndex([pd.Timestamp(d, tz="UTC") for d in closes_by_day])
+    c = np.array(list(closes_by_day.values()), dtype=float)
+    return pd.DataFrame({"Open": c, "High": c, "Low": c, "Close": c, "Volume": 5000}, index=idx)
+
+
+@pytest.fixture
+def official(cfg):
+    """Official closes: the closing auction moved every price away from the last 15-minute bar."""
+    return {cfg.market.late_ticker: daily_bars({"2026-09-21": 100.5, "2026-09-22": 103.0}),
+            "AAA.OL": daily_bars({"2026-09-21": 50.5, "2026-09-22": 52.0}),
+            "BBB.OL": daily_bars({"2026-09-21": 20.0}),                      # no daily bar for Tuesday
+            "CCC.OL": daily_bars({"2026-09-21": 5.1})}
+
+
+def test_the_reference_is_the_official_close_not_the_last_bar(cfg, market, official):
+    doc = quotes.build(cfg, market, now=datetime(2026, 9, 22, 10, 5, tzinfo=UTC), daily=official)   # 12:05 Oslo
+    s, c = doc["session"], doc["coverage"]
+    assert s["previous_close_basis"] == "official close" and s["last_basis"] == "last 15-minute bar" and not s["session_over"]
+    assert doc["index"]["prev_close"] == 100.5 and doc["index"]["prev_close_at"] == "2026-09-21T14:25+00:00"   # 16:25 Oslo
+    assert doc["index"]["last"] == 102.0 and doc["index"]["change"] == pytest.approx(102 / 100.5 - 1, abs=1e-5)
+    assert doc["stocks"]["AAA.OL"]["change"] == pytest.approx(51 / 50.5 - 1, abs=1e-5)
+    assert doc["stocks"]["BBB.OL"]["change"] == pytest.approx(19 / 20 - 1, abs=1e-5)
+    # a stock with no print today stands at its official close with no move, not at the gap to its last bar
+    ccc = doc["stocks"]["CCC.OL"]
+    assert ccc["last"] == 5.1 and ccc["change"] == pytest.approx(0.0) and ccc["last_at"] == "2026-09-21T14:25+00:00"
+    assert c["official_previous_close"] == 3 and c["official_last"] == 0 and c["carried_forward"] == []
+    # Brent has no auction: still measured from its bar at Oslo's close
+    assert doc["brent"]["prev_close"] == 90.0 and doc["brent"]["change"] == pytest.approx(0.1)
+    # without daily bars the document falls back to the last bars and says so
+    plain = quotes.build(cfg, market, now=datetime(2026, 9, 22, 10, 5, tzinfo=UTC))
+    assert plain["session"]["previous_close_basis"] == "last 15-minute bar" and plain["coverage"]["official_previous_close"] == 0
+    assert plain["index"]["prev_close"] == 100.0
+
+
+def test_once_the_session_is_over_the_last_price_is_the_official_close(cfg, market, official):
+    before = quotes.build(cfg, market, now=datetime(2026, 9, 22, 14, 30, tzinfo=UTC), daily=official)    # 16:30 Oslo
+    assert before["index"]["last"] == 102.0 and before["session"]["last_basis"] == "last 15-minute bar"
+    after = quotes.build(cfg, market, now=datetime(2026, 9, 22, 14, 50, tzinfo=UTC), daily=official)     # 16:50 Oslo
+    s = after["session"]
+    assert s["session_over"] and s["last_basis"] == "official close" and not s["market_open"]
+    assert after["index"]["last"] == 103.0 and after["index"]["last_at"] == "2026-09-22T14:25+00:00"
+    assert after["index"]["change"] == pytest.approx(103 / 100.5 - 1, abs=1e-5)
+    assert after["stocks"]["AAA.OL"]["last"] == 52.0
+    assert after["stocks"]["AAA.OL"]["change"] == pytest.approx(52 / 50.5 - 1, abs=1e-5)
+    assert after["stocks"]["BBB.OL"]["last"] == 19.0                     # no daily bar yet: its last 15-minute bar stands
+    assert after["coverage"]["official_last"] == 1 and after["coverage"]["official_previous_close"] == 3
+    assert s["latest_bar"] == before["session"]["latest_bar"]            # Brent stays aligned to Oslo's last bar
+    assert after["brent"]["change_oslo"] == before["brent"]["change_oslo"]
+    weekend = quotes.build(cfg, market, now=datetime(2026, 9, 26, 10, 0, tzinfo=UTC), daily=official)
+    assert weekend["index"]["last"] == 103.0 and weekend["session"]["session_over"]
+    # if the daily bars then fail, the published official closes stay: nothing falls back to an earlier price
+    no_daily = quotes.build(cfg, market, now=datetime(2026, 9, 22, 15, 5, tzinfo=UTC), previous=after)
+    assert no_daily["index"] == after["index"] and no_daily["session"]["last_basis"] == "official close"
+    assert no_daily["stocks"]["AAA.OL"] == after["stocks"]["AAA.OL"]
+    assert set(no_daily["coverage"]["carried_forward"]) == {"index", "AAA.OL", "CCC.OL"}
+
+
+def test_a_quote_never_goes_back_in_time(cfg, market):
+    published = quotes.build(cfg, market, now=datetime(2026, 9, 22, 10, 5, tzinfo=UTC))
+    later = datetime(2026, 9, 22, 10, 20, tzinfo=UTC)
+    # the vendor answers with an older view of one stock: its last three bars are gone and the last one left differs
+    older = market["AAA.OL"].iloc[:-3].copy()
+    older.iloc[-1, older.columns.get_loc("Close")] = 55.0
+    stale = {**market, "AAA.OL": older}
+    again = quotes.build(cfg, stale, now=later, previous=published)
+    assert again["stocks"]["AAA.OL"] == published["stocks"]["AAA.OL"] and again["coverage"]["carried_forward"] == ["AAA.OL"]
+    assert again["stocks"]["BBB.OL"] == published["stocks"]["BBB.OL"]
+    assert quotes.build(cfg, stale, now=later)["stocks"]["AAA.OL"]["last"] == 55.0      # what would have been published
+
+    # a series missing from the response altogether is carried as well
+    missing = {k: v for k, v in market.items() if k != "BBB.OL"}
+    again = quotes.build(cfg, missing, now=later, previous=published)
+    assert again["stocks"]["BBB.OL"] == published["stocks"]["BBB.OL"] and again["coverage"]["carried_forward"] == ["BBB.OL"]
+    assert again["coverage"]["stocks_with_quotes"] == 3
+
+    # Brent is protected the same way
+    stale_oil = {**market, cfg.oil_ticker: market[cfg.oil_ticker].iloc[:-1]}
+    again = quotes.build(cfg, stale_oil, now=later, previous=published)
+    assert again["brent"] == published["brent"] and again["coverage"]["carried_forward"] == ["brent"]
+
+    # a document from another session protects nothing
+    yesterday = json.loads(json.dumps(published))
+    yesterday["session"]["date"] = "2026-09-21"
+    fresh = quotes.build(cfg, stale, now=later, previous=yesterday)
+    assert fresh["stocks"]["AAA.OL"]["last"] == 55.0 and fresh["coverage"]["carried_forward"] == []
+
+    # and an index that goes backwards is an error, not a document
+    back = {**market, cfg.market.late_ticker: market[cfg.market.late_ticker].iloc[:-2]}
+    with pytest.raises(ValueError, match="went back in time"):
+        quotes.build(cfg, back, now=later, previous=published)
+
+
 def test_a_stock_that_has_not_traded_today_keeps_yesterdays_print_and_no_change(cfg, market):
     doc = quotes.build(cfg, market, now=datetime(2026, 9, 22, 10, 5, tzinfo=UTC))
     ccc = doc["stocks"]["CCC.OL"]
     assert ccc["last"] == 5.0 and ccc["last_at"].startswith("2026-09-21")
     assert ccc["change"] == pytest.approx(0.0)                          # its last print IS the previous close
-    assert doc["coverage"] == {"stocks_with_quotes": 3, "stocks_in_universe": 3}
+    assert doc["coverage"]["stocks_with_quotes"] == 3 and doc["coverage"]["stocks_in_universe"] == 3
 
 
 def test_bars_are_local_wall_clock_epochs_for_the_chart(cfg, market):
@@ -168,14 +262,15 @@ def oslo(y, mo, d, h, mi, s=0):
     (oslo(2026, 9, 22, 9, 5), oslo(2026, 9, 22, 9, 16)),        # between ticks
     (oslo(2026, 9, 22, 9, 15, 30), oslo(2026, 9, 22, 9, 16)),   # just before one
     (oslo(2026, 9, 22, 9, 16), oslo(2026, 9, 22, 9, 31)),       # exactly on one: it was just done, move on
-    (oslo(2026, 9, 22, 16, 40), oslo(2026, 9, 22, 16, 46)),     # the delayed closing-auction bar
+    (oslo(2026, 9, 22, 16, 40), oslo(2026, 9, 22, 16, 46)),     # the last continuous bar, delayed
+    (oslo(2026, 9, 22, 16, 50), oslo(2026, 9, 22, 17, 1)),      # one more, for the official closing price
 ])
 def test_ticks_fall_one_minute_after_each_quarter_hour(now, expected):
     assert quotes.next_tick(now) == expected
 
 
 @pytest.mark.parametrize("now", [
-    oslo(2026, 9, 22, 16, 46, 1),                                # after the last tick
+    oslo(2026, 9, 22, 17, 1, 1),                                 # after the last tick
     oslo(2026, 9, 26, 12, 0),                                    # Saturday
     oslo(2026, 9, 27, 10, 0),                                    # Sunday
 ])

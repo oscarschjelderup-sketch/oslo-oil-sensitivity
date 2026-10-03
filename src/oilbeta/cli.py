@@ -98,11 +98,17 @@ def quotes(config: Path = DEFAULT_CONFIG,
 
     cfg = load_config(config).as_live()
     tickers = [cfg.oil_ticker, cfg.market.late_ticker, *[t for t in cfg.context.values() if t.endswith("=X")], *cfg.tickers]
+    previous = outputs.quotes.load(out)              # within a session no quote may be older than the published one
     doc, error = None, None
     for attempt in range(retries + 1):
         try:
             bars = data.fetch_intraday(tickers)
-            doc = outputs.quotes.build(cfg, bars)
+            try:
+                closes = _official_closes([cfg.market.late_ticker, *cfg.tickers])
+            except Exception as exc:                 # the page still works from the bars, and the document says which it used
+                closes = None
+                console.print(f"[yellow]  official closes unavailable ({exc}); using the last 15-minute bars[/]")
+            doc = outputs.quotes.build(cfg, bars, daily=closes, previous=previous)
             break
         except Exception as exc:
             error = exc
@@ -110,19 +116,30 @@ def quotes(config: Path = DEFAULT_CONFIG,
                 console.print(f"[dim]  download failed ({exc}); retrying[/]")
                 _time.sleep(20)
     if doc is None:
-        previous = outputs.quotes.load(out)
         if previous is None:
             raise typer.Exit(code=1)
         doc = outputs.quotes.mark_stale(previous, reason=f"refresh failed: {error}")
         console.print(f"[yellow]Download failed; re-published the previous document as stale ({error})[/]")
     path = outputs.quotes.write(doc, out)
-    s = doc["session"]
+    s, c = doc["session"], doc["coverage"]
     state = "open" if s["market_open"] else "closed"
     console.print(f"Session {s['date']} ({state}), latest bar {s['latest_bar']} ({s['age_minutes']:.0f} min old"
                   f"{', STALE' if s['stale'] else ''})")
     b = doc["brent"]
-    console.print(f"Brent {b['last']} ({b['change']:+.2%} since Oslo close) · {doc['coverage']['stocks_with_quotes']} stocks quoted")
+    console.print(f"Brent {b['last']} ({b['change']:+.2%} since Oslo close) · {c['stocks_with_quotes']} stocks quoted")
+    if "official_previous_close" in c:
+        console.print(f"Reference: official close for {c['official_previous_close']} of {c['stocks_with_quotes']} stocks; "
+                      f"last price: official close for {c['official_last']}"
+                      + (f" · kept the published quote for {', '.join(c['carried_forward'])}" if c["carried_forward"] else ""))
     console.print(f"  quotes    {path}")
+
+
+def _official_closes(tickers: list[str], days: int = 12) -> dict:
+    """Daily bars of the last sessions: the official closing prices, which 15-minute bars never contain."""
+    from datetime import timedelta
+
+    today = outputs.quotes.oslo_now().date()
+    return data.fetch_daily_ohlc(tickers, (today - timedelta(days=days)).isoformat(), today.isoformat())
 
 
 @app.command("next-tick")

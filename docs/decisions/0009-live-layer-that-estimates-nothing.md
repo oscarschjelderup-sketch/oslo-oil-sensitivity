@@ -34,8 +34,8 @@ equal-weighted across the members that have traded, matching how the sector beta
 it fired once in its first 25 slots, at 12:36 Oslo time, four and a half hours after the first one. GitHub runs
 schedules on a best-effort basis, and on this repository the daily 05:30 UTC job started 4 h 39 min late on
 22 September and 4 h 40 min late on the 23rd. A schedule cannot hold a 15-minute rhythm, but a running job can. One run now fetches,
-sleeps until the next tick (09:01–16:46 Oslo, one minute after each quarter-hour, so the delayed closing-auction
-bar is caught), and repeats. Five hours in it queues its successor with `workflow_dispatch`, which does not wait in
+sleeps until the next tick (09:01–17:01 Oslo, one minute after each quarter-hour; the last one fetches the official
+closing price, decision 12), and repeats. Five hours in it queues its successor with `workflow_dispatch`, which does not wait in
 the scheduler's queue but in the concurrency group, and starts the moment the run ends; the run keeps refreshing
 until then. The dispatch is retried at every tick, because GitHub's API answered HTTP 500 to it once (30 September
 2026) and, with a single attempt at the very end of the run, the loop lost five ticks before a safety schedule

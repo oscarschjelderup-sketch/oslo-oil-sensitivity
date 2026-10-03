@@ -7,13 +7,23 @@ so its "since Oslo close" move can start on the previous evening; the page says 
 must also *end* at the same time: once Oslo has stopped for the day Brent trades on, so the
 document carries Brent's move up to Oslo's latest bar (`change_oslo`) next to its live move.
 
+"Close" means the exchange's official closing price. Yahoo's 15-minute bars stop at the last
+continuous trade and never contain the closing auction, which sets the official close: over five
+sessions the two differed for nine stocks in ten, by 0.2% for the median stock. So the reference
+price of every Oslo-listed series comes from the daily bars, and once the session is over so does
+the last price. Where a daily bar is missing the last 15-minute bar is used, and the document
+counts how often.
+
+A quote never goes back in time. If a response shows an older last bar for a series than the
+document already published for the same session, the published quote is kept and listed.
+
 The document carries prices, times and a staleness flag - nothing estimated. The betas that
 turn a Brent move into oil's part of a stock's move come from the daily study; the page joins the two.
 """
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -27,13 +37,15 @@ from ..data.intraday import DELAY_MINUTES
 SCHEMA = "oilbeta.quotes/1"
 OSLO = ZoneInfo("Europe/Oslo")
 OPEN, CLOSE = time(9, 0), time(16, 25)          # continuous trading 09:00-16:20, closing auction to 16:25
+OFFICIAL_AFTER = time(16, 45)                    # by then the delayed daily bar carries the auction price
 STALE_AFTER_MINUTES = 45                         # during trading hours; beyond this the page shows a warning
 # The refresh loop fetches one minute after each quarter-hour. Free data is delayed 15 minutes by the
-# exchange, so the bar that closes at 16:30 (the closing auction) is visible at about 16:45: the last
-# tick of the day is 16:46.
-FIRST_TICK, LAST_TICK = time(9, 1), time(16, 46)
+# exchange, so the last continuous bar is visible at about 16:45 and the official close shortly after:
+# the last tick of the day is 17:01.
+FIRST_TICK, LAST_TICK = time(9, 1), time(17, 1)
 TICK_EVERY = timedelta(minutes=15)
 HOLIDAY_CHECK_AFTER = time(10, 30)               # by then a trading day has published bars
+BARS, OFFICIAL = "last 15-minute bar", "official close"
 
 
 def _bars(frame: pd.DataFrame, tz: ZoneInfo, limit: int | None = None) -> list[list]:
@@ -63,8 +75,22 @@ def _last_close_before(frame: pd.DataFrame, cutoff: pd.Timestamp) -> tuple[float
     return float(before["Close"].iloc[-1]), before.index[-1]
 
 
-def build(cfg: Config, intraday: dict[str, pd.DataFrame], now: datetime | None = None) -> dict:
-    """Assemble the quotes document. `intraday` is {ticker: bars with a UTC index}."""
+def _official_close(daily: dict[str, pd.DataFrame] | None, ticker: str, day: date | None) -> float | None:
+    """The exchange's closing price for `day` (the closing auction), from the daily bars; None if not there."""
+    frame = (daily or {}).get(ticker)
+    if frame is None or frame.empty or day is None:
+        return None
+    hit = frame.loc[pd.DatetimeIndex(frame.index).date == day, "Close"].dropna()
+    return float(hit.iloc[-1]) if len(hit) and hit.iloc[-1] > 0 else None
+
+
+def build(cfg: Config, intraday: dict[str, pd.DataFrame], now: datetime | None = None,
+          daily: dict[str, pd.DataFrame] | None = None, previous: dict | None = None) -> dict:
+    """Assemble the quotes document.
+
+    `intraday` is {ticker: 15-minute bars with a UTC index}. `daily` is {ticker: daily bars}, the source of
+    official closing prices; without it the last 15-minute bars are used. `previous` is the document
+    published last: within the same session no quote may be older than the one it already carries."""
     now = (now or datetime.now(UTC)).astimezone(UTC)
     now_oslo = now.astimezone(OSLO)
     index_t, oil_t, fx_t = cfg.market.late_ticker, cfg.oil_ticker, cfg.context.get("usdnok")
@@ -84,15 +110,37 @@ def build(cfg: Config, intraday: dict[str, pd.DataFrame], now: datetime | None =
     is_trading_day = now_oslo.weekday() < 5
     market_open = (is_trading_day and OPEN <= now_oslo.time() < CLOSE and session_date == now_oslo.date())
     latest_bar = index.index[-1]
+    same_session = bool(previous) and previous.get("session", {}).get("date") == session_date.isoformat()
+    published_bar = previous["session"].get("latest_bar") if same_session else None
+    if published_bar and pd.Timestamp(published_bar) > latest_bar:
+        raise ValueError(f"the index feed went back in time: its latest bar is {latest_bar.isoformat(timespec='minutes')}, "
+                         f"and {published_bar} was already published")
     age_minutes = (now - latest_bar.to_pydatetime()).total_seconds() / 60
     stale = market_open and age_minutes > STALE_AFTER_MINUTES
+    session_over = now_oslo.date() > session_date or (now_oslo.date() == session_date and now_oslo.time() >= OFFICIAL_AFTER)
+
+    def close_time(day: date) -> pd.Timestamp:
+        return pd.Timestamp.combine(day, CLOSE).tz_localize(OSLO).tz_convert("UTC")
+
+    basis: dict[str, tuple[str, str]] = {}           # Oslo-listed series -> (basis of the reference, basis of the last price)
 
     def snapshot(ticker: str, frame: pd.DataFrame | None, bars: int | None = None, name: str | None = None,
-                 trades_after_oslo: bool = False) -> dict | None:
+                 trades_after_oslo: bool = False, oslo_listed: bool = False) -> dict | None:
         if frame is None or frame.empty:
             return None
         last_close, last_at = float(frame["Close"].iloc[-1]), frame.index[-1]
         prev, prev_at = _last_close_before(frame, prev_close_at) if prev_close_at is not None else (None, None)
+        if oslo_listed:
+            prev_basis = last_basis = BARS
+            official_prev = _official_close(daily, ticker, previous_date)
+            if official_prev:
+                prev, prev_at, prev_basis = official_prev, close_time(previous_date), OFFICIAL
+            official_last = _official_close(daily, ticker, session_date) if session_over else None
+            if official_last:
+                last_close, last_at, last_basis = official_last, close_time(session_date), OFFICIAL
+            elif last_at < session_start and prev:
+                last_close, last_at = prev, prev_at          # no print today: its price is still the previous close
+            basis[ticker] = (prev_basis, last_basis)
         change = None if not prev else last_close / prev - 1
         doc = {"name": name or cfg.names.get(ticker, ticker), "last": round(last_close, 4),
                "last_at": last_at.isoformat(timespec="minutes"),
@@ -113,13 +161,42 @@ def build(cfg: Config, intraday: dict[str, pd.DataFrame], now: datetime | None =
             doc["bars"] = _bars(frame, OSLO, bars)
         return doc
 
-    stocks = {t: snapshot(t, intraday.get(t)) for t in cfg.tickers}
+    stocks = {t: snapshot(t, intraday.get(t), oslo_listed=True) for t in cfg.tickers}
     stocks = {t: s for t, s in stocks.items() if s is not None}
+    brent = snapshot(oil_t, intraday.get(oil_t), bars=400, name=cfg.study.factors.oil.name, trades_after_oslo=True)
+    usdnok = snapshot(fx_t, intraday.get(fx_t), bars=400, name="USD/NOK", trades_after_oslo=True) if fx_t else None
+    index_doc = snapshot(index_t, index, bars=400, name=cfg.market.name, oslo_listed=True)
+
+    # --- a quote never goes back in time within a session -------------------------------------
+    carried: list[str] = []
+    index_basis = basis.get(index_t, (BARS, BARS))
+    if same_session:
+        def older(new: dict | None, old: dict | None) -> bool:
+            return bool(old and old.get("last_at")) and (new is None or pd.Timestamp(new["last_at"]) < pd.Timestamp(old["last_at"]))
+
+        for t in cfg.tickers:
+            old = (previous.get("stocks") or {}).get(t)
+            if older(stocks.get(t), old):
+                stocks[t] = old
+                basis.pop(t, None)
+                carried.append(t)
+        if older(index_doc, previous.get("index")):          # e.g. the official close is published, then the daily bars fail
+            index_doc = previous["index"]
+            index_basis = (previous["session"].get("previous_close_basis", BARS), previous["session"].get("last_basis", BARS))
+            carried.append("index")
+        if older(brent, previous.get("brent")):
+            brent = previous["brent"]
+            carried.append("brent")
+        if fx_t and older(usdnok, previous.get("usdnok")):
+            usdnok = previous["usdnok"]
+            carried.append("usdnok")
+
     return {
         "schema": SCHEMA,
         "generated_utc": now.isoformat(timespec="seconds"),
         "source": {"study": "oslo-oil-sensitivity", "version": __version__,
-                   "prices": "Yahoo Finance, unadjusted 15-minute bars", "delay_minutes": DELAY_MINUTES},
+                   "prices": "Yahoo Finance: unadjusted 15-minute bars, official closes from daily bars",
+                   "delay_minutes": DELAY_MINUTES},
         "session": {
             "tz": "Europe/Oslo", "date": session_date.isoformat(),
             "previous_date": previous_date.isoformat() if previous_date else None,
@@ -128,15 +205,22 @@ def build(cfg: Config, intraday: dict[str, pd.DataFrame], now: datetime | None =
             "hours": f"{OPEN:%H:%M}-{CLOSE:%H:%M}",
             "latest_bar": latest_bar.isoformat(timespec="minutes"),
             "age_minutes": round(age_minutes, 1), "stale": bool(stale),
-            "note": "Moves are measured from Oslo Børs's previous close. Brent and USD/NOK trade almost around the "
-                    "clock: their move starts the previous evening, `change` runs to their own latest bar and "
-                    "`change_oslo` stops at Oslo's latest bar, the same window as the stocks.",
+            "session_over": bool(session_over),
+            "previous_close_basis": index_basis[0], "last_basis": index_basis[1],
+            "note": "Oslo-listed series are measured from the official close of the previous session (the closing "
+                    "auction, which 15-minute bars do not contain) to their latest 15-minute bar, and to the official "
+                    "close once the session is over. Brent and USD/NOK trade almost around the clock: their move starts "
+                    "at Oslo's previous close, `change` runs to their own latest bar and `change_oslo` stops at Oslo's "
+                    "latest bar, the same window as the stocks.",
         },
-        "brent": snapshot(oil_t, intraday.get(oil_t), bars=400, name=cfg.study.factors.oil.name, trades_after_oslo=True),
-        "index": snapshot(index_t, index, bars=400, name=cfg.market.name),
-        "usdnok": snapshot(fx_t, intraday.get(fx_t), bars=400, name="USD/NOK", trades_after_oslo=True) if fx_t else None,
+        "brent": brent,
+        "index": index_doc,
+        "usdnok": usdnok,
         "stocks": stocks,
-        "coverage": {"stocks_with_quotes": len(stocks), "stocks_in_universe": len(cfg.tickers)},
+        "coverage": {"stocks_with_quotes": len(stocks), "stocks_in_universe": len(cfg.tickers),
+                     "official_previous_close": sum(1 for t in stocks if basis.get(t, ("", ""))[0] == OFFICIAL),
+                     "official_last": sum(1 for t in stocks if basis.get(t, ("", ""))[1] == OFFICIAL),
+                     "carried_forward": carried},
     }
 
 

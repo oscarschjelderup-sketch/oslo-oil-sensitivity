@@ -256,6 +256,14 @@ stop more than ten days before the requested end, in which case the previous sna
 every stock, and writes one document (schema `oilbeta.quotes/1`). Everything in it is a price, a time or a flag; no
 estimate is made here and nothing here feeds one.
 
+* **The close is the official close** (decision 12). Yahoo's 15-minute bars stop at the last continuous trade and do not
+  contain the closing auction. Over five sessions the last bar equalled the official close for about one stock in ten, and
+  a day's move measured from bars was off by 0.2% to 0.3% for the median stock. Oslo-listed series are therefore measured
+  from the official close of the previous session (daily bars), to their latest 15-minute bar while the session runs and
+  to the official close from 16:45. The document states which basis each number has.
+* **Never backwards.** Within a session a published quote is never replaced by an older one: a response with an earlier
+  last bar for a series, or without the series, leaves the published quote in place and lists it. If the index itself
+  comes back older the response is rejected.
 * **One window.** Every move is measured from Oslo Børs's previous close — the last index bar before the current
   session's 09:00. Brent's move over the *same* window starts the previous evening, which is the oil news Oslo prices at
   the open. The window ends at the same moment too: Brent and USD/NOK trade on after Oslo has stopped, so the document

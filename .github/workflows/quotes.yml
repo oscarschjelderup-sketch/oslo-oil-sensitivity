@@ -8,7 +8,8 @@
 #   * any trigger starts a run - the early "kick-start" schedules below (several, because each may be
 #     hours late or dropped), a manual dispatch, or a hand-off from the previous run;
 #   * the run fetches at once, then sleeps until each tick (one minute after every quarter-hour,
-#     09:01-16:46 Oslo time, from `oilbeta next-tick`) and fetches again;
+#     09:01-17:01 Oslo time, from `oilbeta next-tick`) and fetches again; the last tick picks up the
+#     official closing prices, which the 15-minute bars never contain;
 #   * five hours in it queues its successor with `workflow_dispatch`; the successor waits in the
 #     concurrency group and starts the moment this run ends, which is before the 6-hour job limit.
 #     The dispatch is retried at every tick until it succeeds: GitHub's API answered HTTP 500 to it

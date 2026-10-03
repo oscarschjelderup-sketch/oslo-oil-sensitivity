@@ -494,7 +494,8 @@ $("footMethod").textContent = "Method: r = α + β·index + β_oil·Brent on Fri
     pill.className = "pill " + (s.stale ? "warn" : s.market_open ? "" : "off");
     pill.textContent = s.stale ? "Stale quotes" : s.market_open ? "Market open" : "Market closed";
     stamp.textContent = (s.market_open ? "" : "last session " + dfmt(s.date) + " · ") + "15-minute delayed · latest bar " + oslo(s.latest_bar) +
-      " Oslo · refreshed " + oslo(refreshed) + (s.stale ? " · " + (s.stale_reason || "no fresh bars for " + Math.round(s.age_minutes) + " min") : "");
+      " Oslo" + (s.last_basis === "official close" ? " · official closing prices" : "") + " · refreshed " + oslo(refreshed) +
+      (s.stale ? " · " + (s.stale_reason || "no fresh bars for " + Math.round(s.age_minutes) + " min") : "");
     tickers.textContent = "";
     [["brent", "$", 2], ["index", "", 2], ["usdnok", "", 3]].forEach(([k, unit, d]) => {
       const q = Q[k]; if (!q) return;
@@ -600,9 +601,10 @@ $("footMethod").textContent = "Method: r = α + β·index + β_oil·Brent on Fri
     if ($("todayBandKey") && cover) $("todayBandKey").textContent = cover + "% of days end in this range";
     const movedOn = b.change_oslo != null && b.change != null && Math.abs(b.change - b.change_oslo) > 0.0005;
     note.textContent = "Brent " + pct(brentMove(), 2) + (Q.index && Q.index.change != null ? " and the index " + pct(Q.index.change, 2) : "") +
-      " from Oslo's previous close (" + oslo(b.prev_close_at) + ") to Oslo's latest bar (" + oslo(Q.session.latest_bar) + ")" +
-      (movedOn ? "; Brent has since moved on to " + pct(b.change, 2) + ", which Oslo has not traded on yet" : "") +
-      ". Each move is split exactly. Oil: the unit's total oil beta, from the last " + years +
+      " from Oslo's previous close to " + (Q.session.last_basis === "official close" ? "the official close" : "Oslo's latest bar (" + oslo(Q.session.latest_bar) + ")") +
+      (movedOn ? "; Brent has since moved on to " + pct(b.change, 2) + ", which Oslo has not traded on yet" : "") + ". " +
+      (Q.session.previous_close_basis === "official close" ? "Stocks and the index are measured from the official closing price, closing auction included. " : "") +
+      "Each move is split exactly. Oil: the unit's total oil beta, from the last " + years +
       " years of weekly returns, times Brent's move. " + (A ? "Market: its index beta times the part of the index's move that oil does not explain (the index's own oil beta is " +
       num(A.gamma) + "). Own: the rest. For the typical stock oil accounts for " + share(A.median_r2_oil) + " of weekly variance and oil plus the index for " + share(A.median_r2_two) +
       ", so most of any single day is the company's own news. The ring is oil's part of the move, never a forecast of the day. The shaded range is where the unit ended on " + cover +
