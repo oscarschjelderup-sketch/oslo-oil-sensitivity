@@ -128,8 +128,10 @@ def quotes(config: Path = DEFAULT_CONFIG,
     b = doc["brent"]
     console.print(f"Brent {b['last']} ({b['change']:+.2%} since Oslo close) · {c['stocks_with_quotes']} stocks quoted")
     if "official_previous_close" in c:
-        console.print(f"Reference: official close for {c['official_previous_close']} of {c['stocks_with_quotes']} stocks; "
-                      f"last price: official close for {c['official_last']}"
+        from_doc = c.get("reference_from_published") or []
+        console.print(f"Reference: official close for {c['official_previous_close']} of {c['stocks_with_quotes']} stocks"
+                      + (f" ({len(from_doc)} from the published document)" if from_doc else "")
+                      + f"; last price: official close for {c['official_last']}"
                       + (f" · kept the published quote for {', '.join(c['carried_forward'])}" if c["carried_forward"] else ""))
     console.print(f"  quotes    {path}")
 

@@ -115,6 +115,9 @@ def test_the_reference_is_the_official_close_not_the_last_bar(cfg, market, offic
     ccc = doc["stocks"]["CCC.OL"]
     assert ccc["last"] == 5.1 and ccc["change"] == pytest.approx(0.0) and ccc["last_at"] == "2026-09-21T14:25+00:00"
     assert c["official_previous_close"] == 3 and c["official_last"] == 0 and c["carried_forward"] == []
+    assert c["reference_from_published"] == []
+    assert {(s["prev_close_basis"], s["last_basis"]) for s in doc["stocks"].values()} == {("official close", "last 15-minute bar")}
+    assert "prev_close_basis" not in doc["brent"]                       # Brent has no auction and no basis to state
     # Brent has no auction: still measured from its bar at Oslo's close
     assert doc["brent"]["prev_close"] == 90.0 and doc["brent"]["change"] == pytest.approx(0.1)
     # without daily bars the document falls back to the last bars and says so
@@ -143,7 +146,92 @@ def test_once_the_session_is_over_the_last_price_is_the_official_close(cfg, mark
     no_daily = quotes.build(cfg, market, now=datetime(2026, 9, 22, 15, 5, tzinfo=UTC), previous=after)
     assert no_daily["index"] == after["index"] and no_daily["session"]["last_basis"] == "official close"
     assert no_daily["stocks"]["AAA.OL"] == after["stocks"]["AAA.OL"]
-    assert set(no_daily["coverage"]["carried_forward"]) == {"index", "AAA.OL", "CCC.OL"}
+    assert set(no_daily["coverage"]["carried_forward"]) == {"index", "AAA.OL"}
+    # and the references stay official too, taken from the document already published for this session
+    assert {t: s["prev_close"] for t, s in no_daily["stocks"].items()} == {t: s["prev_close"] for t, s in after["stocks"].items()}
+    assert no_daily["coverage"]["official_previous_close"] == 3 and no_daily["coverage"]["reference_from_published"] == ["BBB.OL", "CCC.OL"]
+    assert no_daily["coverage"]["official_last"] == 1                    # the carried official close still counts as one
+
+
+def test_a_carried_official_close_stays_counted_as_official(cfg, market, official):
+    """5 October 2026, 20:50 Oslo: one stock's daily bars failed to download ('database is locked'), the guard kept its
+    published official close, and the document reported 62 official closes out of 63 that were all official."""
+    after = quotes.build(cfg, market, now=datetime(2026, 9, 22, 14, 50, tzinfo=UTC), daily=official)
+    lost = {t: f for t, f in official.items() if t != "AAA.OL"}           # the failed download
+    again = quotes.build(cfg, market, now=datetime(2026, 9, 22, 18, 50, tzinfo=UTC), daily=lost, previous=after)
+    assert again["coverage"]["carried_forward"] == ["AAA.OL"] and again["stocks"]["AAA.OL"] == after["stocks"]["AAA.OL"]
+    assert again["stocks"]["AAA.OL"]["last_basis"] == "official close"
+    assert again["coverage"]["official_last"] == after["coverage"]["official_last"] == 1
+    assert again["coverage"]["official_previous_close"] == after["coverage"]["official_previous_close"] == 3
+
+
+def test_the_reference_survives_a_blank_daily_bar_overnight(cfg, market, official):
+    """After midnight Oslo time Yahoo blanks the last session's daily bar for some hours (measured 5-6 October 2026).
+    The next morning's reference must still be the official close that was published the evening before."""
+    monday = {k: v.loc[v.index < pd.Timestamp("2026-09-22", tz="UTC")] for k, v in market.items()}
+    evening = quotes.build(cfg, monday, now=datetime(2026, 9, 21, 15, 0, tzinfo=UTC), daily=official)    # 17:00 Oslo
+    assert evening["session"]["date"] == "2026-09-21" and evening["index"]["last"] == 100.5
+    assert evening["index"]["last_basis"] == "official close" and evening["stocks"]["AAA.OL"]["last"] == 50.5
+
+    blank = {t: f.loc[f.index != pd.Timestamp("2026-09-21", tz="UTC")] for t, f in official.items()}   # Monday's row gone
+    with_daily = quotes.build(cfg, market, now=datetime(2026, 9, 22, 10, 5, tzinfo=UTC), daily=official)
+    morning = quotes.build(cfg, market, now=datetime(2026, 9, 22, 10, 5, tzinfo=UTC), daily=blank, previous=evening)
+    for key in ("index", "AAA.OL", "BBB.OL", "CCC.OL"):
+        a = morning["index"] if key == "index" else morning["stocks"][key]
+        b = with_daily["index"] if key == "index" else with_daily["stocks"][key]
+        assert (a["prev_close"], a["prev_close_at"], a["change"], a["prev_close_basis"]) == \
+               (b["prev_close"], b["prev_close_at"], b["change"], b["prev_close_basis"]), key
+    assert morning["session"]["previous_close_basis"] == "official close"
+    assert morning["coverage"]["reference_from_published"] == ["AAA.OL", "BBB.OL", "CCC.OL"]
+    # later the same morning the reference comes from the session's own published document
+    later = quotes.build(cfg, market, now=datetime(2026, 9, 22, 10, 20, tzinfo=UTC), daily=blank, previous=morning)
+    assert later["index"]["prev_close"] == 100.5 and later["coverage"]["official_previous_close"] == 3
+    # once Yahoo has the row back, the daily bars take over with the same numbers
+    back = quotes.build(cfg, market, now=datetime(2026, 9, 22, 10, 35, tzinfo=UTC), daily=official, previous=later)
+    assert back["coverage"]["reference_from_published"] == [] and back["stocks"]["AAA.OL"]["prev_close"] == 50.5
+
+    # a document published before per-series bases existed still hands its official closes on
+    old = json.loads(json.dumps(evening))
+    for entry in [old["index"], *old["stocks"].values()]:
+        entry.pop("prev_close_basis"), entry.pop("last_basis")
+    from_old = quotes.build(cfg, market, now=datetime(2026, 9, 22, 10, 5, tzinfo=UTC), daily=blank, previous=old)
+    assert from_old["index"]["prev_close"] == 100.5 and from_old["coverage"]["official_previous_close"] == 3
+
+    # but a document from an unrelated session proves nothing: back to the last 15-minute bar, and said so
+    stray = json.loads(json.dumps(evening))
+    stray["session"]["date"] = "2026-09-18"
+    unrelated = quotes.build(cfg, market, now=datetime(2026, 9, 22, 10, 5, tzinfo=UTC), daily=blank, previous=stray)
+    assert unrelated["index"]["prev_close"] == 100.0 and unrelated["session"]["previous_close_basis"] == "last 15-minute bar"
+
+
+def test_tickers_missing_from_the_parallel_download_are_fetched_once_more(monkeypatch):
+    """yfinance's parallel download dropped one ticker in production ('database is locked'); retry it alone."""
+    import yfinance
+
+    from oilbeta.data import intraday
+
+    def frame(tickers):
+        idx = pd.date_range("2026-10-05 07:00", periods=3, freq="15min", tz="UTC")
+        cols = pd.MultiIndex.from_product([tickers, ["Open", "High", "Low", "Close", "Volume"]])
+        return pd.DataFrame(1.0, index=idx, columns=cols)
+
+    calls = []
+
+    def fake_download(tickers, threads=True, **kwargs):
+        calls.append((list(tickers), threads))
+        if threads:                                           # the parallel call loses VEI.OL
+            out = frame(list(tickers))
+            out.loc[:, ("VEI.OL", "Close")] = np.nan
+            return out
+        return frame(list(tickers))
+
+    monkeypatch.setattr(yfinance, "download", fake_download)
+    bars = intraday.fetch_intraday(["EQNR.OL", "VEI.OL", "OSEBX.OL"])
+    assert set(bars) == {"EQNR.OL", "VEI.OL", "OSEBX.OL"} and len(bars["VEI.OL"]) == 3
+    assert calls == [(["EQNR.OL", "VEI.OL", "OSEBX.OL"], True), (["VEI.OL"], False)]
+    calls.clear()
+    daily = intraday.fetch_daily_ohlc(["EQNR.OL", "VEI.OL"], "2026-09-28", "2026-10-05")
+    assert set(daily) == {"EQNR.OL", "VEI.OL"} and calls[1] == (["VEI.OL"], False)
 
 
 def test_a_quote_never_goes_back_in_time(cfg, market):

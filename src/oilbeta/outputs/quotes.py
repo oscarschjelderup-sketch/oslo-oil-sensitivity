@@ -17,6 +17,11 @@ counts how often.
 A quote never goes back in time. If a response shows an older last bar for a series than the
 document already published for the same session, the published quote is kept and listed.
 
+Yahoo blanks a session's daily bar for some hours after midnight Oslo time. So when the daily bars
+lack the previous session's close, the reference is the official close this layer already
+published for it - that evening's last price, or the session's reference so far - and the
+document lists the series that took it from there. Every Oslo-listed series states its own basis.
+
 The document carries prices, times and a staleness flag - nothing estimated. The betas that
 turn a Brent move into oil's part of a stock's move come from the daily study; the page joins the two.
 """
@@ -122,7 +127,35 @@ def build(cfg: Config, intraday: dict[str, pd.DataFrame], now: datetime | None =
     def close_time(day: date) -> pd.Timestamp:
         return pd.Timestamp.combine(day, CLOSE).tz_localize(OSLO).tz_convert("UTC")
 
-    basis: dict[str, tuple[str, str]] = {}           # Oslo-listed series -> (basis of the reference, basis of the last price)
+    def entry_of(doc: dict | None, ticker: str) -> dict | None:
+        """One Oslo-listed series of a published document, with the basis fields documents before
+        per-series bases carried at session level only."""
+        if not doc:
+            return None
+        entry = doc.get("index") if ticker == index_t else (doc.get("stocks") or {}).get(ticker)
+        if not entry:
+            return None
+        session = doc.get("session", {})
+        return {"prev_close_basis": session.get("previous_close_basis", BARS), "last_basis": session.get("last_basis", BARS),
+                **entry}
+
+    reference_from_published: list[str] = []
+
+    def published_reference(ticker: str) -> tuple[float, pd.Timestamp] | None:
+        """The previous session's official close as this layer already published it: that evening's last price,
+        or this session's reference so far. Yahoo blanks a session's daily bar for some hours after midnight
+        (measured 5-6 October 2026), so the daily bars alone cannot carry the reference into the next morning."""
+        if not previous or previous_date is None:
+            return None
+        at = close_time(previous_date).isoformat(timespec="minutes")
+        entry, published_session = entry_of(previous, ticker), previous.get("session", {}).get("date")
+        if not entry:
+            return None
+        if published_session == previous_date.isoformat() and entry["last_basis"] == OFFICIAL and entry.get("last_at") == at:
+            return float(entry["last"]), close_time(previous_date)
+        if published_session == session_date.isoformat() and entry["prev_close_basis"] == OFFICIAL and entry.get("prev_close_at") == at:
+            return float(entry["prev_close"]), close_time(previous_date)
+        return None
 
     def snapshot(ticker: str, frame: pd.DataFrame | None, bars: int | None = None, name: str | None = None,
                  trades_after_oslo: bool = False, oslo_listed: bool = False) -> dict | None:
@@ -130,23 +163,28 @@ def build(cfg: Config, intraday: dict[str, pd.DataFrame], now: datetime | None =
             return None
         last_close, last_at = float(frame["Close"].iloc[-1]), frame.index[-1]
         prev, prev_at = _last_close_before(frame, prev_close_at) if prev_close_at is not None else (None, None)
+        prev_basis = last_basis = BARS
         if oslo_listed:
-            prev_basis = last_basis = BARS
             official_prev = _official_close(daily, ticker, previous_date)
+            published = None if official_prev else published_reference(ticker)
             if official_prev:
                 prev, prev_at, prev_basis = official_prev, close_time(previous_date), OFFICIAL
+            elif published:
+                (prev, prev_at), prev_basis = published, OFFICIAL
+                reference_from_published.append(ticker)
             official_last = _official_close(daily, ticker, session_date) if session_over else None
             if official_last:
                 last_close, last_at, last_basis = official_last, close_time(session_date), OFFICIAL
             elif last_at < session_start and prev:
                 last_close, last_at = prev, prev_at          # no print today: its price is still the previous close
-            basis[ticker] = (prev_basis, last_basis)
         change = None if not prev else last_close / prev - 1
         doc = {"name": name or cfg.names.get(ticker, ticker), "last": round(last_close, 4),
                "last_at": last_at.isoformat(timespec="minutes"),
                "prev_close": round(prev, 4) if prev else None,
                "prev_close_at": prev_at.isoformat(timespec="minutes") if prev_at is not None else None,
                "change": round(change, 5) if change is not None else None}
+        if oslo_listed:
+            doc["prev_close_basis"], doc["last_basis"] = prev_basis, last_basis
         if trades_after_oslo:
             # Brent and USD/NOK keep trading when Oslo has stopped. `change` runs to their own latest bar;
             # `change_oslo` stops at Oslo's latest bar, which is the move the stocks could react to.
@@ -169,20 +207,17 @@ def build(cfg: Config, intraday: dict[str, pd.DataFrame], now: datetime | None =
 
     # --- a quote never goes back in time within a session -------------------------------------
     carried: list[str] = []
-    index_basis = basis.get(index_t, (BARS, BARS))
     if same_session:
         def older(new: dict | None, old: dict | None) -> bool:
             return bool(old and old.get("last_at")) and (new is None or pd.Timestamp(new["last_at"]) < pd.Timestamp(old["last_at"]))
 
         for t in cfg.tickers:
-            old = (previous.get("stocks") or {}).get(t)
+            old = entry_of(previous, t)
             if older(stocks.get(t), old):
-                stocks[t] = old
-                basis.pop(t, None)
+                stocks[t] = old                               # with its basis: a carried official close stays official
                 carried.append(t)
         if older(index_doc, previous.get("index")):          # e.g. the official close is published, then the daily bars fail
-            index_doc = previous["index"]
-            index_basis = (previous["session"].get("previous_close_basis", BARS), previous["session"].get("last_basis", BARS))
+            index_doc = entry_of(previous, index_t)
             carried.append("index")
         if older(brent, previous.get("brent")):
             brent = previous["brent"]
@@ -190,6 +225,10 @@ def build(cfg: Config, intraday: dict[str, pd.DataFrame], now: datetime | None =
         if fx_t and older(usdnok, previous.get("usdnok")):
             usdnok = previous["usdnok"]
             carried.append("usdnok")
+    index_basis = (index_doc.get("prev_close_basis", BARS), index_doc.get("last_basis", BARS))
+
+    def official(field: str) -> int:
+        return sum(1 for s in stocks.values() if s.get(field) == OFFICIAL)
 
     return {
         "schema": SCHEMA,
@@ -218,8 +257,8 @@ def build(cfg: Config, intraday: dict[str, pd.DataFrame], now: datetime | None =
         "usdnok": usdnok,
         "stocks": stocks,
         "coverage": {"stocks_with_quotes": len(stocks), "stocks_in_universe": len(cfg.tickers),
-                     "official_previous_close": sum(1 for t in stocks if basis.get(t, ("", ""))[0] == OFFICIAL),
-                     "official_last": sum(1 for t in stocks if basis.get(t, ("", ""))[1] == OFFICIAL),
+                     "official_previous_close": official("prev_close_basis"), "official_last": official("last_basis"),
+                     "reference_from_published": [t for t in reference_from_published if t != index_t and t not in carried],
                      "carried_forward": carried},
     }
 

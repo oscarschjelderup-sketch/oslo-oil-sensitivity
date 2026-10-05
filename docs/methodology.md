@@ -264,6 +264,10 @@ estimate is made here and nothing here feeds one.
 * **Never backwards.** Within a session a published quote is never replaced by an older one: a response with an earlier
   last bar for a series, or without the series, leaves the published quote in place and lists it. If the index itself
   comes back older the response is rejected.
+* **Overnight.** Yahoo blanks a session's daily bar for some hours after midnight Oslo time. When the daily bars lack the
+  previous session's close, the reference is the official close this layer published for it that evening, and the
+  document lists the series that took it from there. Each Oslo-listed series states its own basis. Tested against
+  Euronext's official closes on 5 October 2026: 64 of 64 last prices and references identical (decision 12).
 * **One window.** Every move is measured from Oslo Børs's previous close — the last index bar before the current
   session's 09:00. Brent's move over the *same* window starts the previous evening, which is the oil news Oslo prices at
   the open. The window ends at the same moment too: Brent and USD/NOK trade on after Oslo has stopped, so the document

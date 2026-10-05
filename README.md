@@ -97,7 +97,8 @@ size ([decision 11](docs/decisions/0011-a-split-with-a-range-not-a-forecast.md))
 still weekly and still daily. Prices are 15-minute delayed (an exchange rule for free data), and the page says so.
 Moves are measured between *official* closing prices: the 15-minute bars leave out the closing auction, which put the
 median stock's daily move off by a quarter of a percent, and a quote is never replaced by an older one
-([decision 12](docs/decisions/0012-the-official-close-and-quotes-that-never-go-back.md)).
+([decision 12](docs/decisions/0012-the-official-close-and-quotes-that-never-go-back.md)). On its first full session,
+5 October 2026, every closing price and reference it published matched Euronext's official close, 64 of 64.
 
 ### How it runs
 
@@ -190,7 +191,7 @@ oilbeta quotes              # 15-minute quotes for the "Today" panel -> live/quo
 oilbeta fetch               # data snapshot + validation report only
 oilbeta stock NAS.OL        # one stock, including tickers outside the configured universe
 oilbeta stock EQNR.OL --json oil/EQNR.OL.json   # the same, as a factsheet another tool can read
-pytest tests/unit           # 98 fast tests (~20 s); plain `pytest` adds the two golden tests (~1 min)
+pytest tests/unit           # 101 fast tests (~20 s); plain `pytest` adds the two golden tests (~1 min)
 ruff check .                # lint
 ```
 
