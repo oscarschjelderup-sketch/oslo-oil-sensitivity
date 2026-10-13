@@ -104,18 +104,23 @@ median stock's daily move off by a quarter of a percent, and a quote is never re
 
 GitHub Actions is the run model; nothing has to be switched on anywhere.
 
-- [live-monitor.yml](.github/workflows/live-monitor.yml) runs at 05:30 UTC the morning after each trading day (and on
-  every change to the code): it installs the locked environment, runs `oilbeta live --retries 3` and deploys the page,
-  the pinned report and the workbook to GitHub Pages. Yahoo sometimes throttles cloud IPs, so the last good price
-  snapshot is kept in the Actions cache and served, visibly marked, when a download fails. The job only goes red when
-  the page has been stale for more than a week.
+- [live-monitor.yml](.github/workflows/live-monitor.yml) rebuilds the study the evening of each trading day, started by
+  the quotes loop the moment the session is over and the official closes are published, with that day included
+  ([decision 13](docs/decisions/0013-the-study-runs-when-the-day-is-over.md)). It also runs on every change to the
+  code, and a 17:30 UTC schedule is the fallback for a day the loop never ran. Each run installs the locked environment,
+  runs `oilbeta live --retries 3` and deploys the page, the pinned report and the workbook to GitHub Pages. Yahoo
+  sometimes throttles cloud IPs, so the last good price snapshot is kept in the Actions cache and served, visibly marked,
+  when a download fails; Yahoo also blanks a session's daily bar from midnight until mid-morning, which is why the study
+  runs in the evening and not the morning after. The job only goes red when the page has been stale for more than a
+  week.
 - [quotes.yml](.github/workflows/quotes.yml) keeps the 15-minute layer fresh. GitHub runs schedules on a best-effort
   basis — measured here, the daily 05:30 UTC job started 4 h 39 min late and a `*/15` schedule did not fire once in its
   first morning — so a cron cannot hold a 15-minute rhythm. Instead one run loops: it fetches, sleeps until the next tick
   (one minute after each quarter-hour, 09:01–17:01 Oslo time), fetches again, and five hours in queues its successor
   with `workflow_dispatch`, which waits in the concurrency group and takes over the moment the run ends, inside
   GitHub's 6-hour job limit. The dispatch is retried at every tick: GitHub's API has answered HTTP 500 to it once.
-  Several early schedules act only as kick-starts; a concurrency group keeps exactly one loop alive. Each refresh force-pushes `quotes.json` as a
+  Eight early schedules act only as kick-starts (five of them in the last hour before the open, because the measured
+  first start was 09:18–09:37 with four); a concurrency group keeps exactly one loop alive. Each refresh force-pushes `quotes.json` as a
   single-commit orphan branch that the page reads from raw.githubusercontent.com, and a failed download re-publishes the
   previous document marked stale.
 - [ci.yml](.github/workflows/ci.yml) lints and runs the test suite on every push and pull request.

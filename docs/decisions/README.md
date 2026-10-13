@@ -17,3 +17,4 @@ decided, why, and what was given up.
 | [10](0010-krone-measured-not-adopted.md) | USD/NOK as a third factor: measured, not adopted |
 | [11](0011-a-split-with-a-range-not-a-forecast.md) | The Today panel shows a split with a range, not a forecast |
 | [12](0012-the-official-close-and-quotes-that-never-go-back.md) | The close is the official close, and a quote never goes back in time |
+| [13](0013-the-study-runs-when-the-day-is-over.md) | The daily study runs when the day is over, started by the loop |

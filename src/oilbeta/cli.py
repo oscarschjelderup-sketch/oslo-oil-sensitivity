@@ -58,9 +58,10 @@ def run(config: Path = DEFAULT_CONFIG, refresh: bool = typer.Option(False, help=
 def live(config: Path = DEFAULT_CONFIG,
          offline: bool = typer.Option(False, help="Rebuild from the cached live snapshot without downloading."),
          retries: int = typer.Option(0, help="Extra download attempts before falling back to the cached snapshot."),
-         no_candles: bool = typer.Option(False, help="Skip the daily-candles file for the chart.")):
-    """Refresh prices up to yesterday's close, re-estimate everything and rebuild the live monitor."""
-    cfg = load_config(config).as_live()
+         no_candles: bool = typer.Option(False, help="Skip the daily-candles file for the chart."),
+         through_today: bool = typer.Option(False, help="Include today's close (for a run after the closing auction).")):
+    """Refresh prices up to yesterday's close (or today's, after the session), re-estimate everything and rebuild the monitor."""
+    cfg = load_config(config).as_live(through_today=through_today)
     res = pipeline.run(cfg, refresh=not offline, retries=retries, log=lambda msg: console.print(f"[dim]{msg}[/]"))
     paths = outputs.write_live(res)
     now = res.tables["betas_rolling"].query("unit == @MARKET").iloc[-1]

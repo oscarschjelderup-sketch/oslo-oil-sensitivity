@@ -221,15 +221,18 @@ class Config:
     def is_live(self) -> bool:
         return self.live_end is not None
 
-    def as_live(self, today: date | None = None) -> Config:
-        """Same study, moving end date: everything up to yesterday's close.
+    def as_live(self, today: date | None = None, through_today: bool = False) -> Config:
+        """Same study, moving end date: everything up to yesterday's close, or today's once the
+        session is over.
 
-        Yesterday rather than today, because an intraday run would otherwise mix half-finished
-        daily bars into the sample. Live output goes to its own folder so the pinned research
-        snapshot in results/ stays reproducible.
+        Yesterday by default, because an intraday run would otherwise mix half-finished daily bars
+        into the sample. The quotes loop runs the study after the closing auction, when today's
+        bar is final, and passes `through_today`. Live output goes to its own folder so the pinned
+        research snapshot in results/ stays reproducible.
         """
         today = today or date.today()
-        return replace(self, live_end=(today - timedelta(days=1)).isoformat())
+        end = today if through_today else today - timedelta(days=1)
+        return replace(self, live_end=end.isoformat())
 
     def with_stock(self, ticker: str, sector: str = "Ad hoc") -> Config:
         """A copy with one extra ticker (for `oilbeta stock <any Yahoo ticker>`)."""

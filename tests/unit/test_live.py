@@ -16,6 +16,8 @@ def test_live_config_ends_yesterday_and_writes_elsewhere(mini_cfg):
     assert live.results_dir.name == "live" and mini_cfg.results_dir.name == "results"
     assert live.prices_path != mini_cfg.prices_path and live.manifest_path != mini_cfg.manifest_path
     assert mini_cfg.end == "2020-12-31"                      # the pinned config is untouched
+    evening = mini_cfg.as_live(today=date(2026, 9, 17), through_today=True)   # after the closing auction
+    assert evening.end == "2026-09-17" and evening.is_live and evening.results_dir == live.results_dir
 
 
 def test_unfinished_week_is_dropped_from_weekly_returns(mini_cfg, mini_prices):

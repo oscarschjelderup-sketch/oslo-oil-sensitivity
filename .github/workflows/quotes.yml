@@ -15,7 +15,12 @@
 #     The dispatch is retried at every tick until it succeeds: GitHub's API answered HTTP 500 to it
 #     once (30 September 2026), and with a single attempt at the very end the loop lost five ticks;
 #   * `concurrency` with cancel-in-progress: false keeps exactly one loop alive: extra triggers wait,
-#     collapse into one pending run, and do a single post-close refresh when the loop ends.
+#     collapse into one pending run, and do a single post-close refresh when the loop ends;
+#   * the run that sees the session end with today's official closes published starts the daily
+#     study (live-monitor.yml) with today's close included. Yahoo blanks a session's daily bar
+#     from midnight Oslo time until mid-morning (measured 5-6 October 2026), and GitHub ran the
+#     study's own 05:30 UTC schedule five to eight hours late every day, so the evening after the
+#     close is the one moment the day's data is both final and present.
 #
 # Each refresh force-pushes `quotes.json` as a single-commit orphan branch that the page reads from
 # raw.githubusercontent.com. A failed download re-publishes the previous document marked stale.
@@ -23,13 +28,18 @@ name: Quotes
 
 on:
   schedule:
-    - cron: "17 1,3,5,7 * * 1-5"    # kick-starts before the open (UTC; off the top of the hour, when load peaks)
+    # Kick-starts before the open (UTC; off the top of the hour, where load peaks). Measured over two
+    # weeks: the four early ones never fired or fired hours late, and the loop started 09:18-09:37
+    # Oslo time, losing the first ticks. Several in the last hour before the open give it more chances.
+    - cron: "17 1,3,5 * * 1-5"
+    - cron: "32,47 6 * * 1-5"
+    - cron: "2,17 7 * * 1-5"
     - cron: "47 9,11,13 * * 1-5"    # safety restarts in case a chain died during the day
   workflow_dispatch:
 
 permissions:
   contents: write     # push the quotes branch
-  actions: write      # queue the successor run
+  actions: write      # queue the successor run, start the daily study
 
 concurrency:
   group: quotes
@@ -89,10 +99,24 @@ jobs:
             return 1
           }
 
+          study() {                                 # the day's data is final and present now: run the daily study on it
+            today=$(TZ=Europe/Oslo date +%F)
+            closed_at=$(TZ=Europe/Oslo date -d "$today 16:25" +%s)
+            doc=$(python3 -c "import json;s=json.load(open('live/quotes.json'))['session'];print(s['date'], s.get('last_basis',''))")
+            if [ "$started" -ge "$closed_at" ]; then echo "started after the close: a post-close refresh, not the day's loop"; return; fi
+            if [ "$doc" != "$today official close" ]; then echo "::warning::no official closes for $today in the document ($doc); the daily study is left to its schedule"; return; fi
+            for attempt in 1 2 3; do
+              gh workflow run live-monitor.yml --repo "$GITHUB_REPOSITORY" --ref main -f through_today=true \
+                && { echo "$(date -u +%H:%M) daily study started with today's close"; return; }
+              sleep 20
+            done
+            echo "::warning::could not start the daily study; its evening schedule is the fallback"
+          }
+
           refresh
           while true; do
             wait=$(uv run --frozen -q oilbeta next-tick --quotes-file live/quotes.json 2>/dev/null | tail -1)
-            if [ "$wait" = "done" ]; then echo "session over, loop ends"; break; fi
+            if [ "$wait" = "done" ]; then echo "session over, loop ends"; study; break; fi
             case "$wait" in ''|*[!0-9]*) echo "::warning::next-tick said '$wait'; retrying in 15 min"; wait=900 ;; esac
             elapsed=$(( $(date +%s) - started ))
             if [ "$successor" = 0 ] && [ "$elapsed" -ge "$handoff_after" ]; then

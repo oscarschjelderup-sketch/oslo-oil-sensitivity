@@ -1,5 +1,13 @@
-# The run model of this project: GitHub Actions rebuilds the monitor the morning after every
-# trading day and publishes it to GitHub Pages. Nothing has to be running on anyone's PC.
+# The run model of this project: GitHub Actions rebuilds the monitor after every trading day and
+# publishes it to GitHub Pages. Nothing has to be running on anyone's PC.
+#
+# When it runs. The quotes loop (quotes.yml) starts this workflow the moment the session is over and
+# today's official closes are published, with `through_today` set, so the study includes the day
+# that just ended. That is the one moment the day's data is both final and present: Yahoo blanks a
+# session's daily bar from midnight Oslo time until mid-morning (measured 5-6 October 2026), and
+# GitHub ran the old 05:30 UTC schedule five to eight hours late every day. The evening schedule
+# below is only a fallback for a day the loop never ran; it skips itself when the day's study has
+# already run.
 #
 # One-time setup after the first push: Settings -> Pages -> Source: "GitHub Actions".
 #
@@ -10,8 +18,13 @@ name: Live monitor
 
 on:
   schedule:
-    - cron: "30 5 * * 2-6"   # 05:30 UTC Tue-Sat: data runs to yesterday's close
+    - cron: "30 17 * * 1-5"  # 17:30 UTC Mon-Fri, a fallback: by then the close is on Yahoo and the loop has had its say
   workflow_dispatch:
+    inputs:
+      through_today:
+        description: "Include today's close (the quotes loop sets this after the closing auction)"
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: ["src/**", "configs/**", "uv.lock", ".github/workflows/live-monitor.yml"]
@@ -22,13 +35,43 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: read
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
+  decide:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+      through_today: ${{ steps.check.outputs.through_today }}
+    steps:
+      - name: Has the day's study already run, and should today's close be in?
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run=true; through_today=false
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            today=$(date -u +%F)
+            done_today=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow live-monitor.yml --event workflow_dispatch \
+                           --status success --limit 10 --json createdAt --jq "[.[] | select(.createdAt[0:10] == \"$today\")] | length")
+            if [ "${done_today:-0}" -gt 0 ]; then
+              echo "the loop already ran the study today ($done_today run); nothing to do"; run=false
+            elif [ "$(TZ=Europe/Oslo date +%H%M)" -ge 1645 ] && [ "$(TZ=Europe/Oslo date +%u)" -le 5 ]; then
+              through_today=true                    # after the auction, before midnight: today's close is final and present
+            fi
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            through_today="${{ inputs.through_today }}"
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"; echo "through_today=$through_today" >> "$GITHUB_OUTPUT"
+          echo "run=$run through_today=$through_today"
+
   build:
+    needs: decide
+    if: needs.decide.outputs.run == 'true'
     runs-on: ubuntu-latest
     outputs:
       age_days: ${{ steps.fresh.outputs.age_days }}
@@ -56,7 +99,11 @@ jobs:
           # the live layer: quotes come from the `quotes` branch (see quotes.yml), candles ship with the site
           OILBETA_QUOTES_URL: https://raw.githubusercontent.com/${{ github.repository }}/quotes/quotes.json
           OILBETA_CANDLES_URL: candles.json
-        run: uv run oilbeta live --retries 3
+        run: |
+          flag=""
+          if [ "${{ needs.decide.outputs.through_today }}" = "true" ]; then flag="--through-today"; fi
+          echo "oilbeta live --retries 3 $flag"
+          uv run oilbeta live --retries 3 $flag
 
       - name: How fresh is it?
         id: fresh

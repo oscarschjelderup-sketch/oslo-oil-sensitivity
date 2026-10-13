@@ -245,8 +245,9 @@ that does not recognise the major version refuses the file rather than guessing.
 ## Live mode
 
 `oilbeta live` sets the sample end to yesterday (an intraday run would otherwise mix half-finished daily bars into the
-sample), drops the current unfinished week from the weekly returns, and writes to `live/` so the pinned results stay
-reproducible. Shocks enter once their [0,+1] window exists; windows that reach past the end of the data are missing,
+sample), or to today with `--through-today`, which the quotes loop passes when it starts the study after the closing
+auction (decision 13). It drops the current unfinished week from the weekly returns, and writes to `live/` so the pinned
+results stay reproducible. Shocks enter once their [0,+1] window exists; windows that reach past the end of the data are missing,
 not partial sums, and such events are left out of the averaged CAR paths. The download is rejected if Brent or OSEBX
 stop more than ten days before the requested end, in which case the previous snapshot is served and flagged as stale.
 
